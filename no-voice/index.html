@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Museum of “Imperfect” Creativity</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 页面一：展厅，单件聚焦陈列 -->
+  <section id="page-gallery" class="page is-active">
+    <!-- 氛围粒子层：浮尘 / 光斑 / 换场爆发，纯 canvas 绘制，不吃点击 -->
+    <canvas class="fx-canvas" id="fxCanvas" aria-hidden="true"></canvas>
+
+    <h1 class="gallery-title">The Museum of “Imperfect” Creativity</h1>
+
+    <div class="gallery">
+      <!-- 3D 舞台：perspective 决定镜头焦距；.carousel 必须保持 preserve-3d，
+           否则各层的 translateZ 会被压平，整套纵深就没了。
+           展品由 script.js 生成，每件是一叠景深不同的平面，摄影机沿 Z 轴推进。 -->
+      <div class="stage" id="stage">
+        <!-- 展墙：整场展览共用的一面墙，不跟着展品换。
+             挂镜线 + 踢脚线两条硬边横线是「这是一个房间」最省的交代，
+             而且它们会随镜头轻微横移 —— 一眼就看得出镜头在动。 -->
+        <div class="room" aria-hidden="true">
+          <span class="room-wall"></span>
+        </div>
+
+        <div class="carousel" id="carousel">
+          <button class="add-btn icon-btn" id="addBtn" type="button" aria-label="Submit Your Contribution">
+            <img class="button-icon" src="image/button-contribute.png" alt="" draggable="false">
+            <span class="add-tip">Submit Your Contribution</span>
+          </button>
+        </div>
+
+        <!-- 前景剪影层 = 房间的边框。它永远挡在展品之前：
+             天花横梁、左右门柱、地台、左下角探进来的一枝。
+             硬边 + 投影 + 遮挡，这才是纵深；换场时它们按各自的速度横移，
+             于是镜头一动，整个房间就在展品前面错开。 -->
+        <div class="fg-layer" aria-hidden="true">
+          <span class="fg fg-top"></span>
+          <span class="fg fg-left"></span>
+          <span class="fg fg-right"></span>
+          <span class="fg fg-floor"></span>
+          <!-- 最前排的一撮碎片剪影：永远压在展品之前。
+               参考片里每一场都有一排深色剪影钉在画面下缘（观众 / 道具），
+               那是最便宜也最有效的「我在前面还有一层」的交代。 -->
+          <span class="fg fg-shard fg-shard-a"></span>
+          <span class="fg fg-shard fg-shard-b"></span>
+          <span class="fg fg-shard fg-shard-c"></span>
+          <!-- 换场时横掠过去的撕纸：把上一件与下一件的交接整块盖掉 -->
+          <span class="fg fg-wipe"></span>
+        </div>
+      </div>
+
+      <!-- 换场闪光：换到下一件时的一记「快门」，压在展品之上、粒子之下 -->
+      <div class="fx-flash" id="fxFlash" aria-hidden="true"></div>
+
+      <div class="progress-bar">
+        <!-- 分步导航：一格一步，走完展墙正好到投稿按钮 -->
+        <div class="step-nav">
+          <button class="step-btn" id="prevStep" type="button" aria-label="Previous work">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <p class="step-count" aria-live="polite"><span class="num" id="stepNow">05</span> / <span id="stepTotal">11</span></p>
+          <button class="step-btn" id="nextStep" type="button" aria-label="Next work">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+
+        <!-- 手绘波浪进度条：小手随步进沿曲线移动 -->
+        <svg class="progress" viewBox="0 0 1000 130" aria-hidden="true">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10z"/>
+            </marker>
+          </defs>
+          <path class="progress-track" id="progressTrack" d="M40 95 C160 45 330 35 520 65 S820 110 930 70" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+          <path class="progress-fill" id="progressFill" d="M40 95 C160 45 330 35 520 65 S820 110 930 70"/>
+          <g class="progress-hand" id="progressHand">
+            <!-- 透明圆：扩大小手的拖动热区 -->
+            <circle r="26" fill="transparent"/>
+            <g transform="translate(-20 -22) scale(0.04)">
+              <path d="M846.742 373.124c-41.878 0-76.094 34.446-76.094 76.624v-89.406c0-42.178-34.198-76.623-76.094-76.623-41.86 0-76.076 34.445-76.076 76.623v-54.554c0-42.161-34.198-76.624-76.093-76.624-41.879 0-76.077 34.463-76.077 76.624V79.236c0-42.178-34.198-76.623-76.093-76.623-41.878 0-76.094 34.445-76.094 76.623v547.84l-89.865-90.535a78.742 78.742 0 0 0-111.616 0c-30.702 30.896-30.702 81.478 0 112.393L361.49 899.53c57.909 71.998 146.714 118.148 246.024 118.148 169.278 0 307.642-133.596 315.534-301.426h0.441V449.536c-0.653-41.737-34.869-76.412-76.747-76.412z"/>
+            </g>
+          </g>
+        </svg>
+
+        <button class="progress-icon" id="progressIcon" type="button" aria-label="Interactive Page">
+          <img src="image/progress-button.png" alt="" width="1230" height="275" draggable="false">
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页面二：画布，在碎片底图上自由涂画 -->
+  <section id="page-detail" class="page">
+    <header class="studio-head">
+      <button class="icon-btn" id="backBtn" type="button" aria-label="Back" title="Back">
+        <img class="button-icon" src="image/back.png" alt="" draggable="false">
+        <span class="btn-tip">Back</span></button>
+      <div class="studio-actions">
+        <button class="icon-btn" id="downloadBtn" type="button" aria-label="Download" title="Download">
+          <img class="button-icon" src="image/button-download.png" alt="" draggable="false">
+          <span class="btn-tip">Download</span></button>
+        <button class="icon-btn" id="uploadBtn" type="button" aria-label="Upload" title="Upload">
+          <img class="button-icon" src="image/button-upload.png" alt="" draggable="false">
+          <span class="btn-tip">Upload</span></button>
+      </div>
+    </header>
+
+    <div class="studio-body">
+      <img class="studio-logo" src="ico.png" alt="Broken jug">
+      <!-- 两层画布：底层放碎片底图，上层是用户笔迹（橡皮只擦上层） -->
+      <div class="canvas-wrap">
+        <canvas id="baseCanvas" width="1200" height="800"></canvas>
+        <canvas id="drawCanvas" width="1200" height="800"></canvas>
+      </div>
+
+      <div class="toolbar">
+        <button class="tool-btn icon-btn is-active" type="button" data-tool="pencil" aria-label="Pencil" title="Pencil" aria-pressed="true">
+          <img class="button-icon" src="image/button-brush.png" alt="" draggable="false">
+          <span class="btn-tip">Pencil</span></button>
+        <button class="tool-btn icon-btn" type="button" data-tool="eraser" aria-label="Eraser" title="Eraser" aria-pressed="false">
+          <img class="button-icon" src="image/button-eraser.png" alt="" draggable="false">
+          <span class="btn-tip">Eraser</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 上传弹窗：Reflection 表单 -->
+  <div class="modal" id="reflectModal">
+    <form class="modal-box" id="reflectForm">
+      <button class="modal-close" id="modalClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+
+      <p class="modal-step">REFLECTION</p>
+      <h2 class="modal-title">What influenced your design?</h2>
+
+      <p class="modal-label">Select one or more</p>
+      <!-- 云朵选项由 script.js 生成 -->
+      <div class="cloud-options" id="cloudOptions"></div>
+
+      <p class="modal-label">Tell us more (optional)</p>
+      <div class="story-box">
+        <textarea id="storyInput" maxlength="300" placeholder="Share the story, feeling, or idea behind your design..."></textarea>
+        <span class="story-count" id="storyCount">0 / 300</span>
+      </div>
+
+      <p class="modal-label">Add reference images (optional)</p>
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/png,image/jpeg" multiple hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M5 15v5h14v-5"/></svg>
+        <strong>Click to upload or drag images here</strong>
+        <small>JPG, PNG : Max 10 MB</small>
+      </label>
+      <div class="thumbs" id="thumbs"></div>
+
+      <div class="modal-actions">
+        <button class="pill-btn" id="skipBtn" type="button">Skip</button>
+        <button class="pill-btn is-primary" type="submit">Submit</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- 对比弹窗：提交 Reflection 后出现，人类作品 vs 两个 AI 版本 -->
+  <div class="modal" id="compareModal">
+    <div class="modal-box compare-box">
+      <button class="modal-close" id="compareClose" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+
+      <div class="compare-cols">
+        <div class="compare-col">
+          <h3>YOUR INTERPRETATION</h3>
+          <p class="compare-sub">&nbsp;</p>
+          <div class="compare-img"><img id="humanImg" src="image/ai-human.png" alt="Human interpretation"></div>
+          <!-- NOTE: 常显，用户填写的内容展示在下方 -->
+          <div class="compare-info" id="humanInfo">
+            <p>NOTE:<br><span id="humanNote"></span></p>
+          </div>
+        </div>
+        <div class="compare-col">
+          <h3>AI INTERPRETATION</h3>
+          <p class="compare-sub">ChatGPT</p>
+          <div class="compare-img"><img src="image/ai-chatgpt.jpg" alt="ChatGPT interpretation"></div>
+          <div class="compare-info">
+            <p>AI TOOL: CHATGPT</p>
+            <p>PROMPT (EXCERPT)::<br>"Turn the pottery shard into a handmade brooch with ribbon, flower and safety pin..."</p>
+            <p>ITERATIONS: 6</p>
+            <p>SELECTED: VERSION 02</p>
+          </div>
+        </div>
+        <div class="compare-col">
+          <h3>AI INTERPRETATION</h3>
+          <p class="compare-sub">Midjourney</p>
+          <div class="compare-img"><img src="image/ai-midjourney.jpg" alt="Midjourney interpretation"></div>
+          <div class="compare-info">
+            <p>AI TOOL: MIDJOURNEY</p>
+            <p>PROMPT (EXCERPT)::<br>"Reimagine the pottery shard as a small floating garden with moss, flowers and miniature steps..."</p>
+            <p>ITERATIONS: 8</p>
+            <p>SELECTED: VERSION 05</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="pill-btn" id="compareSkip" type="button">Skip</button>
+        <button class="pill-btn is-primary" id="compareUpload" type="button">Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- 转场动画：点击进度条右侧图标后全屏播放，结束进入页面二 -->
+  <!-- 无音效版：视频加 muted，转场全程静音 -->
+  <video class="transition-video" id="transitionVideo" src="transition.mp4" preload="auto" playsinline muted></video>
+
+  <script src="shard-data.js"></script>
+  <script src="script.js"></script>
+  <script src="particles.js"></script>
+</body>
+</html>
