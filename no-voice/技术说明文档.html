@@ -9,9 +9,9 @@
 
   :root {
     --ink: #2b2222;
-    --blue: #2c5f9a;
-    --sky: #a3b4c6;
-    --paper: #f7f3ea;
+    --pink: #f0bcbb;
+    --rose: #e8a09e;
+    --paper: #fff5f4;
     --hand: "Comic Sans MS", "Segoe Print", cursive;
     --sans: "Helvetica Neue", Arial, sans-serif;
     --serif: Georgia, "Times New Roman", serif;
@@ -229,8 +229,8 @@
     font-size: 0.9em;
     padding: 1px 5px;
     border-radius: 4px;
-    background: #ece6da;
-    color: #2f5d94;
+    background: #fde9e8;
+    color: #7a3d3b;
     word-break: break-word;
   }
 
@@ -290,7 +290,7 @@
 
   <h3>核心动线 / USER JOURNEY</h3>
   <ol class="flow">
-    <li><b>浏览</b> — 沿一条纵深轨道逐件推进，一次只陈列一件作品。每件作品由「远墙组名 / 裱纸 / 画框 / 展签牌」四层纸片叠成，镜头在纵深里推拉；换场时一张撕纸横掠而过，下一件已经在纸背后站好。</li>
+    <li><b>浏览</b> — 在凹面弧形展墙上横向浏览三组题材、共九件作品；居中作品自动放大获得视觉焦点，两侧作品向观众靠近并收拢角度。</li>
     <li><b>转场</b> — 点击进度条末端图标触发全屏转场视频，播放完毕后无缝切入创作工作室，形成空间上的连续过渡。</li>
     <li><b>创作</b> — 在陶片碎片底图上以铅笔／橡皮自由涂画，笔迹与底图分层隔离，可随时导出为 PNG 图片。</li>
     <li><b>反思</b> — 通过反思表单选择影响设计取向的因素、补充文字说明，并可选上传参考图片。</li>
@@ -304,7 +304,7 @@
   <ol class="tech-list">
     <li><b>结构层（index.html）</b> — 定义两个页面级容器 <code>#page-gallery</code> 与 <code>#page-detail</code>、两个模态弹窗及转场视频节点；动态内容留空，统一由脚本注入，保证结构层与数据解耦。</li>
     <li><b>表现层（style.css）</b> — 承载主题变量、版面布局、状态样式与响应式断点。视图切换仅通过容器上的 <code>is-active</code> 状态类控制显隐，不做 DOM 增删，从而规避反复重排带来的性能损耗。</li>
-    <li><b>逻辑层（script.js）</b> — 承担数据建模、3D 舞台的逐帧景深与视差计算、指针交互、画布绘制与弹窗状态机等全部行为逻辑。</li>
+    <li><b>逻辑层（script.js）</b> — 承担数据建模、弧形投影计算、指针交互、画布绘制与弹窗状态机等全部行为逻辑。</li>
     <li><b>资源层（shard-data.js）</b> — 以 Base64 数据 URI 内联方式承载碎片底图，用于规避本地协议下的画布跨域限制（详见第 05 节）。</li>
   </ol>
 
@@ -312,26 +312,24 @@
   <table class="spec">
     <tr><th>index.html</th><td>结构骨架：两个页面级容器、两个模态弹窗与转场视频节点</td></tr>
     <tr><th>style.css</th><td>全部样式：主题变量、版面布局、交互状态与响应式断点</td></tr>
-    <tr><th>script.js</th><td>全部逻辑：3D 舞台景深与视差、指针交互、画布绘制与弹窗状态机</td></tr>
-    <tr><th>particles.js</th><td>展厅氛围粒子：远景光斑 / 浮尘 / 星芒 / 换场冷尘爆发，纯 canvas 绘制，不吃点击。顶部有总开关 <code>INTENSITY</code>（当前 0.76，1.0 为原始强度）统一控制浓度</td></tr>
+    <tr><th>script.js</th><td>全部逻辑：弧形投影、指针交互、画布绘制与弹窗状态机</td></tr>
     <tr><th>shard-data.js</th><td>Base64 内联的陶片底图资源（约 170KB）</td></tr>
-    <tr><th>image/</th><td>作品图像与图标素材，共 20 项；image/trim/ 另存 4 张裁掉烘焙暗边的副本</td></tr>
-    <tr><th>transition.mp4</th><td>展厅至工作室的转场动画视频。画面自带一层烘焙进去的粉色水彩纸底，无法重出，播放时用 <code>--video-hue: hue-rotate(-125deg) saturate(0.72)</code> 把它转到与页面纸同一个蓝（角度是按页面纸实测色反解的，页面纸改色则需重新量）</td></tr>
+    <tr><th>image/</th><td>作品图像与图标素材，共 20 项</td></tr>
+    <tr><th>transition.mp4</th><td>展厅至工作室的转场动画视频</td></tr>
   </table>
 
-  <h3>02 · 3D 舞台与多层平面 / 3D STAGE</h3>
-  <p>展厅不是一张贴在屏幕上的平面图，而是一间用 CSS 3D 搭出来的房间：舞台 <code>.stage</code> 上写死 <code>perspective: 900px</code> 充当镜头焦距，摄影机沿 Z 轴推进。每件作品由四张景深不同的纸片叠成，放大倍率完全交给浏览器的透视除法（<code>m = P / (P − z)</code>）计算，脚本不手写任何 <code>scale</code> —— 于是同一件作品内部的前后两层会以不同速率掠过，这才是立体感的真正来源。</p>
+  <h3>02 · 弧形画廊渲染 / GALLERY RENDERING</h3>
+  <p>展厅以“凹面圆柱”为几何模型：九件作品沿一条向内弯曲的弧线排布，观众的视点位于圆心一侧。渲染时把每个元素的弧线位置 <code>s</code> 与当前视口中心 <code>offset</code> 之差映射为圆周角，再换算为三维位移，最终以 CSS <code>transform</code> 逐帧写入，形成“越靠中间越大、越靠近观众”的透视效果。核心映射关系如下：</p>
   <table class="spec">
-    <tr><th>景深映射</th><td><code>z = FOCUS_Z − away · SPACING</code>，<code>away</code> = 作品序号 − 镜头位置</td></tr>
-    <tr><th>远墙组名</th><td><code>translateZ(−380px)</code>，视差系数 +190：章节标题挂在最远的一层</td></tr>
-    <tr><th>裱纸</th><td><code>translateZ(−150px)</code>：画框背后那张牛皮纸，朝上左错开，露出一圈撕边</td></tr>
-    <tr><th>画框（对焦平面）</th><td><code>translateZ(0)</code> + <code>rotateY(−8deg)</code>：左右两条竖边不等长，一眼就是插在空间里的一块板</td></tr>
-    <tr><th>展签牌（前景）</th><td><code>translateZ(+150px)</code> + <code>rotateY(−17deg)</code>，视差系数 −330，与画框反向甩开</td></tr>
-    <tr><th>前景剪影层</th><td>天花横梁 / 左右门柱 / 地台 / 前排碎片剪影，永远压在展品之前</td></tr>
-    <tr><th>展墙</th><td>与页面同一张水彩纸压暗一档：<code>.room</code> 铺纹理、<code>.room-wall</code> 只叠一层半透明蓝墨（不透明底色会把纹理整个盖死）；天花光锥上窄下宽，是整场最省的「空间透视」线索</td></tr>
+    <tr><th>圆周角</th><td><code>angle = (rel + push) / RADIUS</code></td></tr>
+    <tr><th>水平位移</th><td><code>x = RADIUS · sin(angle)</code></td></tr>
+    <tr><th>纵深位移</th><td><code>z = RADIUS · (1 − cos(angle))</code></td></tr>
+    <tr><th>朝向旋转</th><td><code>rotateY(−angle)</code>，使卡片法线始终指向圆心（即观众）</td></tr>
+    <tr><th>缩放倍率</th><td><code>scale = 1 + 0.5 · max(0, 1 − |rel| / STEP)</code>，仅居中卡片放大至 1.5 倍</td></tr>
+    <tr><th>层级排序</th><td><code>z-index = 100 − |rel| / 10</code>，保证近端元素覆盖远端元素</td></tr>
   </table>
-  <p>纵深不靠模糊，靠四件事：<b>硬边分层</b>（每张纸都有自己的轮廓）、<b>投影</b>（画框用「12px 硬投影 = 纸片厚度」叠「26px 软投影 = 离墙多远」，两层缺一不可）、<b>遮挡</b>（前排碎片剪影咬住画框左下角）、<b>视差</b>（同一件作品内部各层以不同速率横移）。换场时一张撕纸横掠过去把交接整块盖住 —— 那是遮挡，不是虚化。</p>
-  <p class="note">关键参数：透视焦距 <code>PERSP = 900</code>，相邻作品间距 <code>SPACING = 1000</code>，横向让开 <code>SWEEP = 430px</code>，近端剔除 <code>NEAR_CULL = 620</code>。撕纸宽 210%、行程 −120% → 120%，在进度 35%~50% 之间完全盖住舞台（按 <code>getBoundingClientRect()</code> 实测：40% 时覆盖率 1.000，50% 时纸已离场）；镜头正好在 50% 处穿过中点，于是「换掉」这件事发生在纸背后。</p>
+  <p>为突出焦点并降低无效绘制，脚本对超出可视角度阈值（<code>MAX_ANGLE = 1.35 rad</code>）的元素置为 <code>visibility: hidden</code>，在保留 DOM 结构的同时避免多余渲染；居中卡片放大后，两侧元素按 <code>PUSH</code> 偏移向外让位，防止视觉重叠。</p>
+  <p class="note">关键参数：卡片 180 × 340px，组内间距 40px，组间间距 140px（含分隔线），弧半径 1100px（数值越小弯曲越明显），居中放大倍率 1.5×，相邻卡片步距 220px。</p>
 
   <h3>03 · 交互与动画 / INTERACTION &amp; ANIMATION</h3>
   <ol class="tech-list">
@@ -354,7 +352,7 @@
   <p class="note">该策略的取舍：以约 170KB 的脚本体积换取离线可用性与导出功能；对本地展馆类应用而言，这一权衡的收益明显大于成本。</p>
 
   <h3>06 · 响应式适配 / RESPONSIVE</h3>
-  <p>展厅以 <code>ResizeObserver</code> 监听舞台尺寸变化，按「展品最多占展区宽度 76%、高度 78%」反解出对焦平面的 z 值（<code>FOCUS_Z</code>），使作品在不同分辨率下保持一致的视觉占比，同时避免展签挤到标题或底部控件上。样式层另设 720px 断点，在窄屏下将色板由九列降为三列、字号标尺由双列降为单列，保证小屏可读性。</p>
+  <p>展厅以 <code>ResizeObserver</code> 监听容器尺寸变化，实时计算缩放比 <code>galleryScale = 容器高度 / 650</code> 并整体等比缩放，使九件作品在不同分辨率的屏幕上保持一致的版面比例与视觉密度，同时避免说明文字挤入标题或底部控件。样式层另设 720px 断点，在窄屏下将色板由九列降为三列、字号标尺由双列降为单列，保证小屏可读性。</p>
 
   <h3>07 · 无障碍与可用性 / ACCESSIBILITY</h3>
   <ol class="tech-list">
@@ -370,15 +368,14 @@
     <div class="swatch"><div class="chip" style="background:#2b2222"></div><div class="hex">#2B2222</div><div class="role">墨色 · 文字与描边</div></div>
     <div class="swatch"><div class="chip" style="background:#4a3020"></div><div class="hex">#4A3020</div><div class="role">画框内阴影</div></div>
     <div class="swatch"><div class="chip" style="background:#7a5433"></div><div class="hex">#7A5433</div><div class="role">木质画框</div></div>
-    <div class="swatch"><div class="chip" style="background:#2c5f9a"></div><div class="hex">#2C5F9A</div><div class="role">水彩蓝 · 主色（--paper）</div></div>
-    <div class="swatch"><div class="chip" style="background:#909fb9"></div><div class="hex">#909FB9</div><div class="role">展墙 · 水彩纸压暗一档后的观感</div></div>
-    <div class="swatch"><div class="chip" style="background:#d8bb9e"></div><div class="hex">#D8BB9E</div><div class="role">裱纸 · 牛皮纸</div></div>
-    <div class="swatch"><div class="chip" style="background:#2a1814"></div><div class="hex">#2A1814</div><div class="role">前景剪影 / 换场撕纸（胡桃木）</div></div>
-    <div class="swatch"><div class="chip" style="background:#f7f3ea"></div><div class="hex">#F7F3EA</div><div class="role">米纸 · 卡片与输入底（--rice）</div></div>
-    <div class="swatch"><div class="chip" style="background:#ece6da"></div><div class="hex">#ECE6DA</div><div class="role">悬停 / 选中态（--rice-deep）</div></div>
-    <div class="swatch"><div class="chip" style="background:#a3b4c6"></div><div class="hex">#A3B4C6</div><div class="role">浅色分隔线（--line）</div></div>
+    <div class="swatch"><div class="chip" style="background:#e8a09e"></div><div class="hex">#E8A09E</div><div class="role">玫瑰 · 强调与分隔</div></div>
+    <div class="swatch"><div class="chip" style="background:#f0bcbb"></div><div class="hex">#F0BCBB</div><div class="role">桃粉 · 主色</div></div>
+    <div class="swatch"><div class="chip" style="background:#f8cfcd"></div><div class="hex">#F8CFCD</div><div class="role">悬停态</div></div>
+    <div class="swatch"><div class="chip" style="background:#fde9e8"></div><div class="hex">#FDE9E8</div><div class="role">弹窗底色</div></div>
+    <div class="swatch"><div class="chip" style="background:#fff5f4"></div><div class="hex">#FFF5F4</div><div class="role">卡片与输入底</div></div>
+    <div class="swatch"><div class="chip" style="background:#ffffff"></div><div class="hex">#FFFFFF</div><div class="role">画布 · 纸张白</div></div>
   </div>
-  <p class="note">色板由深到浅构成层级：墨色承担全部文字与描边，水彩蓝负责主色与容器底色；暖色的木质画框、牛皮纸裱纸与米纸卡面压在冷色展墙上，前后对比就出来了。背景是一张蓝色水彩纸 —— <code>background.png</code> 用 <code>background-blend-mode: luminosity</code> 只换色相、不动纹理；但纹理的明度决定了最终亮度，单改 <code>--paper</code> 的明度不起作用，所以纸面还要叠一层 <code>--wash</code> 深蓝水洗来定调。水洗层带 <code>fixed</code>，页面纸、展墙、画布页三块背景才落在同一个坐标系里，读成同一张纸。</p>
+  <p class="note">色板由深到浅构成层级：墨色承担全部文字与描边，桃粉系负责主色与容器底色，玫瑰色作强调；背景另铺水彩纸纹理图叠加纸感。</p>
 
   <h3>BUTTON</h3>
   <div class="icon-row">
@@ -412,7 +409,7 @@
       <div class="cap">Submit Your Contribution</div>
     </div>
   </div>
-  <p class="note">图标按钮 72 × 72px，圆角 16px，描边 2px，内边距 10px；说明文字统一 13px / 粗体 / 行高 1.4，全大写。按钮底色为米纸白 #F7F3EA，悬停转 #ECE6DA，选中的工具另加 4px 硬阴影上浮；投稿按钮不套外框，由图标自带的圆角方框充当按钮外形。本页仅展示图标本身，不铺底色。</p>
+  <p class="note">图标按钮 72 × 72px，圆角 16px，描边 2px，内边距 10px；说明文字统一 13px / 粗体 / 行高 1.4，全大写。按钮底色为极浅粉白 #FFF5F4，悬停转 #FDE9E8，选中的工具另加 4px 硬阴影上浮；投稿按钮不套外框，由图标自带的圆角方框充当按钮外形。本页仅展示图标本身，不铺底色。</p>
 
   <h3>TYPE SCALE</h3>
   <div class="type-scale">

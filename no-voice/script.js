@@ -25,11 +25,11 @@ const GROUPS = [
         info: ['AI TOOL : OPENAI IMAGE GENERATION', 'PROMPT (EXCERPT):', '“a single cloud, soft pink light, blue sky, dreamy...”', 'ITERATIONS : 10', 'SELECTED : VERSION 07']
       },
       {
-        img: 'image/trim/05.jpg', title: 'HUMAN A', sub: 'Observational Oil Study',
+        img: 'image/05.jpg', title: 'HUMAN A', sub: 'Observational Oil Study',
         info: ['ARTIST : JOHN CONSTABLE', 'WORK : CLOUD STUDY, C. 1822', 'MEDIUM : OIL STUDY', 'COPYRIGHT : PUBLIC DOMAIN']
       },
       {
-        img: 'image/trim/06.jpg', title: 'HUMAN B', sub: 'Expressive Oil Study',
+        img: 'image/06.jpg', title: 'HUMAN B', sub: 'Expressive Oil Study',
         info: ['ARTIST : JOHN CONSTABLE', 'WORK : CLOUD STUDY — STORMY SUNSET, 1821–1822', 'MEDIUM : OIL ON PAPER', 'COPYRIGHT : PUBLIC DOMAIN']
       }
     ]
@@ -42,127 +42,90 @@ const GROUPS = [
         info: ['AI TOOL : OPENAI IMAGE GENERATION', 'PROMPT (EXCERPT):', '“a solitary figure, viewed from behind, sunset, warm light...”', 'ITERATIONS : 9', 'SELECTED : VERSION 08']
       },
       {
-        img: 'image/trim/08.jpg', title: 'HUMAN A', sub: 'Romantic Oil Painting',
+        img: 'image/08.jpg', title: 'HUMAN A', sub: 'Romantic Oil Painting',
         info: ['ARTIST : CASPAR DAVID FRIEDRICH', 'WORK : WANDERER ABOVE THE SEA OF FOG, C. 1818', 'MEDIUM : OIL ON CANVAS', 'COPYRIGHT : PUBLIC DOMAIN']
       },
       {
-        img: 'image/trim/09.jpg', title: 'HUMAN B', sub: 'Intimate Interior Painting',
+        img: 'image/09.jpg', title: 'HUMAN B', sub: 'Intimate Interior Painting',
         info: ['ARTIST : CASPAR DAVID FRIEDRICH', 'WORK : WOMAN AT A WINDOW, 1822', 'MEDIUM : OIL ON CANVAS', 'COPYRIGHT : PUBLIC DOMAIN']
       }
     ]
   }
 ];
 
-// ========== 立体场景参数（摄影机沿 Z 轴推进 + 多层景深） ==========
-// 一件展品不再是一张平面图，而是一叠景深不同的平面：远墙 → 画框 → 展签牌 → 前景遮挡。
-// 摄影机沿世界 Z 轴推进，各层因为景深不同自然产生视差——这是「立体感」真正的来源。
-// 构图尺寸不等于卡片尺寸：画框在 z = 0，展签牌在 z = +150，
-// 后者被透视放得更大，所以整幅构图要比卡片本身宽出一截。
-const COMPOSE_W = 880;   // 构图的有效宽度（卡框 + 展签牌）
-const COMPOSE_H = 400;
-const FIT_W = 0.76;      // 对焦的展品最多占展区宽度的比例
-const FIT_H = 0.78;      // 最多占展区高度的比例
-// 构图重心比卡片中心略偏右（展签牌在右边），整体左移一点才是视觉居中
-const CARD_SHIFT = 'calc(-50% - 40px)';
-
-const PERSP = 900;       // 必须与 style.css 里 .stage 的 perspective 一致
-const SPACING = 1000;    // 相邻两件展品在世界坐标里的 Z 间距
-const NEAR_CULL = 620;   // 越过镜头到这个距离就彻底不画（PERSP = 900，留足安全边）
-const NEAR_FADE = 0.95;  // 推近时淡到全透明的位置（占 NEAR_CULL 的比例）
-const SWEEP = 430;       // 每前进一件，整件展品同时横向推移多少（换场靠「让开」而不是虚化）
-
-// 换场**不用模糊**：立体感全部由「硬边分层 + 投影 + 视差」来交代。
-// 各层横向视差的系数（负数 = 与镜头反向移动），差得越大，层次越分明：
-// 组名挂在最远的一层，跟着远墙走；展签牌是前景，反向甩开。
-const PARALLAX = {
-  back:  190,
-  plate: -330
-};
+// ========== 弧形画廊参数 ==========
+const CARD_W = 180;
+const CARD_H = 340;
+const GAP = 40;              // 组内卡片间距
+const GROUP_GAP = 140;       // 组间间距（中间放分隔线）
+const STEP = CARD_W + GAP;   // 相邻卡片的间隔
+const CENTER_SCALE = 1.5;    // 居中卡片的放大倍数
+const PUSH = CARD_W * (CENTER_SCALE - 1) / 2; // 居中卡片放大后两侧需让出的距离
+const LABEL_Y = -(CARD_H * CENTER_SCALE / 2 + 25); // 组名在卡片上方的高度
+const RADIUS = 1100;         // 弧形半径，越小弯曲越明显
+const MAX_ANGLE = 1.35;      // 超出该角度（弧度）的元素隐藏
 
 const carousel = document.getElementById('carousel');
-const galleryEl = document.getElementById('page-gallery');
-const fgLayer = document.querySelector('.fg-layer');
-const fxFlash = document.getElementById('fxFlash');
-const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let galleryScale = 1;
 
-let FOCUS_Z = 0;   // 对焦平面相对透视原点的 z，由展区尺寸反解（见 resizeGallery）
-
-const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
-
-// ---------- 造一件展品：一叠平面 ----------
-// 每层的视觉都放在 .plane-inner 上，于是 CSS 动画动 scale / translate / opacity 时，
-// 不会跟每帧由 JS 写入的景深 transform 抢属性。
-function createCard(work, groupName) {
+function createCard(work) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = `
-    <div class="plane plane-back" data-plane="back">
-      <div class="plane-inner">${groupName ? `<span class="plane-group">${groupName}</span>` : ''}</div>
+    <div class="card-head">
+      <h3>${work.title}</h3>
+      <p>${work.sub}</p>
     </div>
-    <div class="plane plane-mount" data-plane="mount">
-      <div class="plane-inner"></div>
+    <div class="card-frame-box">
+      <div class="card-frame"><img src="${work.img}" alt="${work.sub}" draggable="false"></div>
     </div>
-    <div class="plane plane-frame" data-plane="frame">
-      <div class="plane-inner">
-        <div class="card-frame"><img src="${work.img}" alt="${work.sub}" draggable="false"></div>
-        <span class="frame-tape"></span>
-      </div>
-    </div>
-    <div class="plane plane-plate" data-plane="plate">
-      <div class="plane-inner">
-        <h3>${work.title}</h3>
-        <p class="plate-sub">${work.sub}</p>
-        <div class="plate-info">
-          ${work.info.map((line, i) => i === 0 ? `<strong>${line}</strong>` : `<p>${line}</p>`).join('')}
-        </div>
-      </div>
+    <div class="card-info">
+      ${work.info.map((line, i) => i === 0 ? `<strong>${line}</strong>` : `<p>${line}</p>`).join('')}
     </div>`;
   return card;
 }
 
-// ---------- 展品与轨道 ----------
-// 每件展品在世界坐标里占一个 SPACING 的位置，摄影机停在 offset 处（单位：件）
-const items = [];
-const cards = [];
+function addItem(el, s, extra) {
+  carousel.appendChild(el);
+  items.push({ el, s, y: 0, ...extra });
+}
 
-GROUPS.forEach(group => {
-  group.works.forEach((work, wi) => {
-    const el = createCard(work, wi === 0 ? group.name : '');
-    carousel.appendChild(el);
-    const item = {
-      el,
-      i: cards.length,
-      isCard: true,
-      planes: [...el.querySelectorAll('.plane')],
-      visible: null,
-      centered: null,
-      key: ''
-    };
-    items.push(item);
-    cards.push(item);
+// 每个元素在弧线上的位置 s（展开后的水平距离）
+const items = [];
+let s = 0;
+GROUPS.forEach((group, g) => {
+  if (g > 0) {
+    s += CARD_W / 2 + GROUP_GAP / 2;
+    const divider = document.createElement('div');
+    divider.className = 'divider';
+    addItem(divider, s);
+    s += GROUP_GAP / 2 + CARD_W / 2;
+  }
+
+  // 组名放在中间那张卡片的上方
+  const label = document.createElement('div');
+  label.className = 'group-label';
+  label.textContent = group.name;
+  addItem(label, s + STEP, { y: LABEL_Y });
+
+  group.works.forEach((work, w) => {
+    if (w > 0) s += STEP;
+    addItem(createCard(work), s, { isCard: true });
   });
 });
 
+const cards = items.filter(item => item.isCard);
 cards.forEach((c, i) => { c.el.dataset.index = i; });
+const minOffset = cards[0].s;
+const maxOffset = cards[cards.length - 1].s;
 
-// 投稿按钮接在最后一件展品之后，作为整场展览的出口
-const addBtnItem = {
-  el: document.getElementById('addBtn'),
-  i: cards.length,
-  isCard: false,
-  visible: null,
-  centered: null,
-  key: ''
-};
-items.push(addBtnItem);
+// + 按钮放在第 10 张的位置
+addItem(document.getElementById('addBtn'), maxOffset + STEP);
 
-const minOffset = 0;
-const maxOffset = addBtnItem.i;
+// 当前居中位置，初始让第 5 张居中
+let offset = cards[4].s;
 
-// 镜头初始停在第一件展品上
-let offset = 0;
-
-// 进度条：描边虚线显示已走过的部分，小手停在当前进度点
+// 进度条：用描边虚线显示已走过的部分，小手停在当前进度点
 const progressTrack = document.getElementById('progressTrack');
 const progressFill = document.getElementById('progressFill');
 const progressHand = document.getElementById('progressHand');
@@ -176,236 +139,82 @@ function renderProgress() {
   progressHand.setAttribute('transform', `translate(${pt.x} ${pt.y})`);
 }
 
-// ---------- 每帧：把摄影机的位置翻译成各层的景深 ----------
-// 核心就一句 z = FOCUS_Z - away * SPACING：
-//   away = 0  → 正对镜头（对焦平面），最大最清晰
-//   away > 0  → 还沉在景深里，小、远、虚
-//   away < 0  → 已经推过镜头，急速放大、虚化、淡出
-// 放大倍率完全交给浏览器的透视除法（m = P / (P - z)），不再手写 scale；
-// 于是同一件展品内部的前后两层会以不同速率掠过——这才是立体感的来源。
+// 把弧线位置映射到凹面圆柱：两侧向观众靠近并朝向中心；越靠近中间放大越多
 function render() {
-  const cam = offset;
-
   items.forEach(item => {
-    const away = item.i - cam;
-    const z = FOCUS_Z - away * SPACING;
-    const step = Math.abs(away);   // 离对焦平面多远（单位：步）
-
-    // 焦点强调交给 CSS，只在跨越边界时切一次 class，不每帧写样式。
-    // 必须放在隐藏判断之前——否则被隐藏的展品会一直留着 is-center
-    //
-    // 触发点取 0.5 步，也就是换场走到一半的地方：那时候撕纸正好把画面盖住，
-    // 于是「入场分镜」（墙板→画框→展签牌→前景纸片依次落位）整段都发生在纸背后，
-    // 纸一让开，新的一件已经站好了。取 0.28 的话动画会拖到推镜结束之后才演，
-    // 看起来就像「到位了又抖一下」。
-    const centered = item.isCard && step < 0.5;
-    if (item.centered !== centered) {
-      item.centered = centered;
-      item.el.classList.toggle('is-center', centered);
-    }
-
-    // 已经被镜头推过去的那一件：各层散开（离场分镜）。与 is-center 互斥。
-    const past = item.isCard && away < -0.5;
-    if (item.past !== past) {
-      item.past = past;
-      item.el.classList.toggle('is-past', past);
-    }
-
-    // 推近的那件一直放大到贴着镜头才淡出，从景深里来的那件后段才显影 ——
-    // 于是读起来是「镜头穿过去、下一件从景深里拉出来」，而不是两张图交叉溶解。
-    //
-    // 推近那件的曲线刻意压得很晚才掉：换场前半程它还几乎是全不透明的，
-    // 一直放大到贴脸，然后由横掠过去的撕纸把它整块盖掉。
-    // 早早就淡掉的话，读起来就还是「一张图淡出、另一张淡入」。
-    const opacity = z > FOCUS_Z
-      ? clamp01(1 - Math.pow((z - FOCUS_Z) / (NEAR_CULL * 1.6), 2.2))
-      : clamp01((0.56 - step) / 0.3);
-
-    // 穿到镜头后面、或者已经淡到看不见，就彻底不画
-    if (z > NEAR_CULL || opacity <= 0.002) {
-      if (item.visible !== false) {
-        item.visible = false;
-        item.el.style.visibility = 'hidden';
-      }
-      return;
-    }
-    if (item.visible !== true) {
-      item.visible = true;
-      item.el.style.visibility = 'visible';
-    }
-
-    // 位移三件套：横向让开（换场靠它）+ 轻微升降 + 景深推进
-    const shift = item.isCard ? CARD_SHIFT : '-50%';
+    const rel = item.s - offset;
+    // 居中卡片放大后，两侧元素向外让位
+    const pushed = rel + Math.max(-1, Math.min(1, rel / STEP)) * PUSH;
+    const angle = pushed / RADIUS;
+    const x = RADIUS * Math.sin(angle);
+    const z = RADIUS * (1 - Math.cos(angle));
+    const scale = item.isCard ? 1 + (CENTER_SCALE - 1) * Math.max(0, 1 - Math.abs(rel) / STEP) : 1;
     item.el.style.transform =
-      `translate(${shift}, -50%) translate3d(${(away * SWEEP).toFixed(1)}px, ${(away * -16).toFixed(1)}px, ${z.toFixed(1)}px)`;
-
-    // 横向视差：远墙 / 展签牌 / 前景各用不同系数，喂给 CSS 的自定义属性。
-    // 同一件展品内部各层以不同速度横移，才读得出「一层叠一层」
-    item.el.style.setProperty('--bgx', (away * PARALLAX.back).toFixed(1));
-    item.el.style.setProperty('--plx', (away * PARALLAX.plate).toFixed(1));
-
-    if (item.isCard) {
-      // 透明度做在每一层上，不能做在 .card 上——给 .card 设 opacity 会让
-      // preserve-3d 被压平，纵深当场消失。
-      const key = opacity.toFixed(3);
-      if (item.key !== key) {
-        item.key = key;
-        item.planes.forEach(plane => { plane.style.opacity = key; });
-      }
-    } else {
-      item.el.style.opacity = opacity.toFixed(3);
-    }
+      `translate(-50%, -50%) translate3d(${x}px, ${item.y}px, ${z}px) rotateY(${-angle}rad) scale(${scale})`;
+    item.el.style.zIndex = Math.round(100 - Math.abs(rel) / 10);
+    item.el.style.visibility = Math.abs(angle) > MAX_ANGLE ? 'hidden' : 'visible';
   });
-
-  // 前景剪影层：跟着镜头左右摆（正弦首尾连续，停位时正好归零，不会跳）。
-  // 摆幅按「谁离镜头近谁摆得多」分配：门柱 80~104px、左下角那枝 168px。
-  // 于是镜头一动，房间的边框就在展品前面错开 —— 这一下就把平面切换变成了「穿过空间」。
-  if (fgLayer) {
-    fgLayer.style.setProperty('--fgs', Math.sin(cam * Math.PI).toFixed(4));
-  }
-
   renderProgress();
 }
 
-// ========== 分步推进 ==========
-// 一步 = 一件展品；最后一步是投稿按钮，走完正好是出口
-const stepTargets = cards.map(c => c.i).concat(addBtnItem.i);
-let stepIndex = 0;
-
-const stepNow = document.getElementById('stepNow');
-const stepTotal = document.getElementById('stepTotal');
-const prevStepBtn = document.getElementById('prevStep');
-const nextStepBtn = document.getElementById('nextStep');
-stepTotal.textContent = String(stepTargets.length).padStart(2, '0');
-
-function updateSteps() {
-  const next = String(stepIndex + 1).padStart(2, '0');
-  if (stepNow.textContent !== next) {
-    stepNow.textContent = next;
-    stepNow.classList.remove('is-flip');
-    void stepNow.offsetWidth;   // 强制重排，让动画能重播
-    stepNow.classList.add('is-flip');
-  }
-  prevStepBtn.disabled = stepIndex === 0;
-  nextStepBtn.disabled = stepIndex === stepTargets.length - 1;
-}
-
-// 换场的一记「快门」：只闪一下，别把画面糊住
-let flashTimer;
-function flash() {
-  if (reduceMotion || !fxFlash) return;
-  fxFlash.classList.remove('is-on');
-  void fxFlash.offsetWidth;   // 强制重排，让动画能重播
-  fxFlash.classList.add('is-on');
-  clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => fxFlash.classList.remove('is-on'), 520);
-}
-
-// 电影感的推镜：缓入缓出，走得越远摇得越久。
-// 不用指数衰减——那种「一冲就到」的手感像拖拽，不像镜头。
-let tweenFrame = null;
-const cancelTween = () => {
-  cancelAnimationFrame(tweenFrame);
-  tweenFrame = null;
-  galleryEl.classList.remove('is-moving');
-  if (fgLayer) fgLayer.classList.remove('is-wiping');
-};
-
+// 平滑移动到指定位置
+let moveFrame = null;
 function animateTo(target) {
-  cancelTween();
-  const from = offset;
-  const delta = target - from;
-  if (Math.abs(delta) < 0.004 || reduceMotion) { offset = target; render(); return; }
-  const duration = Math.min(1600, 760 + Math.abs(delta) * 150);
-  const t0 = performance.now();
-  const ease = p => p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-  galleryEl.classList.add('is-moving');
-  // 换场靠前景剪影横掠过去把交接盖住——是「遮挡」，不是虚化。
-  // 用 CSS 动画而不是每帧写样式，动画时长与这次的推镜时长对齐。
-  if (fgLayer) {
-    fgLayer.style.setProperty('--wipe-dur', (duration / 1000).toFixed(2) + 's');
-    // 往前走纸从左往右扫，往回走纸从右往左扫 —— 方向本身就是导航反馈
-    fgLayer.classList.toggle('is-back', delta < 0);
-    fgLayer.classList.remove('is-wiping');
-    void fgLayer.offsetWidth;   // 强制重排，让动画能重播
-    fgLayer.classList.add('is-wiping');
-  }
-  const frame = now => {
-    // now 来自 rAF 的时间戳，t0 来自 performance.now()，是两个时钟。
-    // 后台标签页唤醒、无头浏览器 / 虚拟时钟下，now 有可能小于 t0，
-    // 进度就成了负数，而缓动函数在负数区会朝反方向剧烈发散 ——
-    // 镜头直接飞出展墙，所有展品都被判成不可见（整屏空白）。
-    // 夹住下界，最坏也只是这一帧原地不动。
-    const p = Math.min(1, Math.max(0, now - t0) / duration);
-    offset = from + delta * ease(p);
+  cancelAnimationFrame(moveFrame);
+  const step = () => {
+    offset += (target - offset) * 0.15;
+    if (Math.abs(target - offset) < 0.5) offset = target;
     render();
-    if (p < 1) tweenFrame = requestAnimationFrame(frame);
-    else {
-      tweenFrame = null;   // 收尾必须置空
-      galleryEl.classList.remove('is-moving');
-      if (fgLayer) fgLayer.classList.remove('is-wiping');
-    }
+    if (offset !== target) moveFrame = requestAnimationFrame(step);
   };
-  tweenFrame = requestAnimationFrame(frame);
+  step();
 }
 
-// immediate=true 时直接落位，用于拖小手这种需要跟手的场景
-function goToStep(i, immediate) {
-  const prev = stepIndex;
-  stepIndex = Math.max(0, Math.min(stepTargets.length - 1, i));
-  // 换了一件才放金尘爆发 + 快门闪光；拖小手时同一件会反复触发，用 prev 挡掉
-  if (stepIndex !== prev) {
-    const r = carousel.getBoundingClientRect();
-    window.dispatchEvent(new CustomEvent('museum:focus', {
-      detail: { x: r.left + r.width / 2, y: r.top + r.height / 2 }
-    }));
-    flash();
-  }
-  const target = stepTargets[stepIndex];
-  if (immediate) { cancelTween(); offset = target; render(); }
-  else animateTo(target);
-  updateSteps();
-}
-const stepBy = d => goToStep(stepIndex + d);
-// ========== 点击与分步导航 ==========
-// 点侧面的卡片，它移到正中间
-carousel.addEventListener('click', e => {
-  const card = e.target.closest('.card');
-  if (card) goToStep(Number(card.dataset.index));
-});
+// ========== 拖动与点击 ==========
+let dragging = false;
+let startX = 0;
+let startOffset = 0;
+let moved = false;
 
-prevStepBtn.addEventListener('click', () => stepBy(-1));
-nextStepBtn.addEventListener('click', () => stepBy(1));
+const clamp = v => Math.min(maxOffset, Math.max(minOffset, v));
 
-// 方向键 / PageUp / PageDown / Home / End 都是一步一步走
-document.addEventListener('keydown', e => {
-  if (!document.getElementById('page-gallery').classList.contains('is-active')) return;
-  // e.target 可能是 document 本身（页面没有焦点元素时），document 没有 matches()，
-  // 直接调会抛 TypeError 把整个处理器打断。先确认它是元素再判断。
-  const t = e.target;
-  if (t instanceof Element && t.matches('input, textarea, [contenteditable="true"]')) return;
-  if (document.getElementById('page-detail').classList.contains('is-active')) return;
-  const k = e.key;
-  if (k === 'ArrowRight' || k === 'PageDown') { e.preventDefault(); stepBy(1); }
-  else if (k === 'ArrowLeft' || k === 'PageUp') { e.preventDefault(); stepBy(-1); }
-  else if (k === 'Home') { e.preventDefault(); goToStep(0); }
-  else if (k === 'End') { e.preventDefault(); goToStep(stepTargets.length - 1); }
-});
-
-// 触屏左右滑一下 = 走一步（不是自由拖拽，滑动距离不决定走多远）
-let swipeX = 0;
-let swipeY = 0;
 carousel.addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse') return;
-  swipeX = e.clientX;
-  swipeY = e.clientY;
+  // + 按钮交给自身的点击事件处理，不参与拖动
+  if (e.target.closest('.add-btn')) return;
+  dragging = true;
+  moved = false;
+  startX = e.clientX;
+  startOffset = offset;
+  cancelAnimationFrame(moveFrame);
+  carousel.classList.add('is-dragging');
+  carousel.setPointerCapture(e.pointerId);
 });
+
+carousel.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - startX;
+  if (Math.abs(dx) > 5) moved = true;
+  offset = clamp(startOffset - dx * 1.2 / galleryScale);
+  render();
+});
+
 carousel.addEventListener('pointerup', e => {
-  if (e.pointerType === 'mouse') return;
-  const dx = e.clientX - swipeX;
-  const dy = e.clientY - swipeY;
-  if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) stepBy(dx < 0 ? 1 : -1);
+  dragging = false;
+  carousel.classList.remove('is-dragging');
+
+  // 没有拖动视为点击：点中的卡片移到正中间
+  if (!moved) {
+    const card = document.elementFromPoint(e.clientX, e.clientY)?.closest('.card');
+    if (card) animateTo(cards[card.dataset.index].s);
+    return;
+  }
+  snapToNearest();
 });
+
+// 松手后吸附到最近的一张
+function snapToNearest() {
+  animateTo(cards.reduce((a, b) => Math.abs(b.s - offset) < Math.abs(a.s - offset) ? b : a).s);
+}
 
 // ========== 拖动进度条上的小手 ==========
 // 曲线在 x 方向单调，预先采样，拖动时按指针 x 找最近的采样点得到进度
@@ -417,7 +226,7 @@ let handDragging = false;
 
 progressHand.addEventListener('pointerdown', e => {
   handDragging = true;
-  cancelTween();
+  cancelAnimationFrame(moveFrame);
   progressHand.setPointerCapture(e.pointerId);
 });
 
@@ -429,40 +238,25 @@ progressHand.addEventListener('pointermove', e => {
   trackSamples.forEach((x, i) => {
     if (Math.abs(x - pt.x) < Math.abs(trackSamples[best] - pt.x)) best = i;
   });
-  // 拖小手也按步走：落在哪一步就跳到哪一步，不做连续擦洗
-  const p = Math.max(0, Math.min(1, best / SAMPLE_COUNT));
-  goToStep(Math.round(p * (stepTargets.length - 1)), true);
+  offset = minOffset + (maxOffset - minOffset) * best / SAMPLE_COUNT;
+  render();
 });
 
 progressHand.addEventListener('pointerup', () => {
   handDragging = false;
+  snapToNearest();
 });
 
-// ========== 鼠标滚轮：一次完整滚动 = 走一步 ==========
-// 触控板会连续吐出很小的 delta，按事件个数计数会「滚一下跳好几件」。
-// 改成累加位移：攒够一次完整滚动的量才走一步，杂散的小抖动不会误触。
-let wheelLock = 0;
-let wheelAcc = 0;
-let wheelSign = 0;
-const WHEEL_STEP = 90;
-
+// ========== 鼠标滚轮滚动 ==========
+let wheelTimer = null;
 document.getElementById('page-gallery').addEventListener('wheel', e => {
   e.preventDefault();
-  const now = performance.now();
-  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-  const sign = d > 0 ? 1 : -1;
-  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-
-  // 上一次滚动已经结束，或者方向反了，就重新攒
-  if (now > wheelLock + 160 || sign !== wheelSign) wheelAcc = 0;
-  wheelSign = sign;
-  wheelAcc += Math.abs(d) * unit;
-
-  if (now < wheelLock) return;         // 冷却中，只攒不走
-  if (wheelAcc < WHEEL_STEP) return;   // 还没攒够一次完整滚动
-  wheelLock = now + 520;
-  wheelAcc = 0;
-  stepBy(sign);
+  cancelAnimationFrame(moveFrame);
+  offset = clamp(offset + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY));
+  render();
+  // 停止滚动后吸附到最近的一张
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(snapToNearest, 150);
 }, { passive: false });
 
 // ========== 点击进度条右侧图标，播放转场动画，结束后进入页面二 ==========
@@ -473,18 +267,16 @@ const transitionVideo = document.getElementById('transitionVideo');
 document.getElementById('progressIcon').addEventListener('click', () => {
   pageGallery.classList.add('is-leaving');
   transitionVideo.classList.add('is-playing');
-  transitionVideo.currentTime = 0;
   // 无音效版：播放前再显式静音一次，避免个别浏览器忽略 HTML muted 属性
   transitionVideo.muted = true;
+  transitionVideo.currentTime = 0;
   transitionVideo.play();
 });
 
 transitionVideo.addEventListener('ended', () => {
   pageGallery.classList.remove('is-active', 'is-leaving');
   pageDetail.classList.add('is-active');
-  // 视频不硬切：先淡出，让画布页的进场动画从底下透出来
-  transitionVideo.classList.add('is-fading');
-  setTimeout(() => transitionVideo.classList.remove('is-playing', 'is-fading'), 620);
+  transitionVideo.classList.remove('is-playing');
 });
 
 // 画布页左上角返回展厅
@@ -493,20 +285,16 @@ document.getElementById('backBtn').addEventListener('click', () => {
   pageGallery.classList.add('is-active');
 });
 
-// 对焦的展品要「占满画面」：由透视公式 m = P / (P - z) 反解出对焦平面该站在哪。
-// 于是放大倍率随窗口变化，而各层之间的视差比例保持不变——换个窗口还是同一套镜头。
+// 按展区可用高度缩放，大屏也放大铺满，避免作品说明挤入标题或底部控件
 function resizeGallery() {
-  const w = carousel.clientWidth;
-  const h = carousel.clientHeight;
-  if (!w || !h) return;
-  const m = Math.min((w * FIT_W) / COMPOSE_W, (h * FIT_H) / COMPOSE_H);
-  FOCUS_Z = PERSP * (m - 1) / m;
-  render();
+  if (!carousel.clientHeight) return;
+  galleryScale = carousel.clientHeight / 650;
+  carousel.style.scale = galleryScale;
 }
 
 new ResizeObserver(resizeGallery).observe(carousel);
 resizeGallery();
-updateSteps();
+render();
 
 // ========== 页面二：画布 ==========
 const baseCanvas = document.getElementById('baseCanvas');
@@ -612,8 +400,8 @@ function cloudPath() {
 }
 
 const cloudD = cloudPath();
-document.getElementById('cloudOptions').innerHTML = REFLECT_OPTIONS.map((name, i) => `
-  <label class="cloud-option" style="animation-delay:${i * 45}ms">
+document.getElementById('cloudOptions').innerHTML = REFLECT_OPTIONS.map(name => `
+  <label class="cloud-option">
     <input type="checkbox" name="influence" value="${name}">
     <svg class="cloud" viewBox="0 0 500 110" preserveAspectRatio="none"><path d="${cloudD}" vector-effect="non-scaling-stroke"/></svg>
     <span class="check-box"><svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg></span>

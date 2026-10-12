@@ -6,54 +6,15 @@
 
 :root {
   --ink: #2b2222;   /* 墨色：文字、线条 */
-  --paper: #2c5f9a; /* 水彩蓝主色（背景纸与强调色共用） */
-
-  /* 页面纸的水洗层。纹理图本身偏亮，光调 --paper 是调不出深蓝的：
-     背景用的是 background-blend-mode: luminosity，亮度完全由纹理决定，
-     把 --paper 调暗只会让 B 通道一路削顶，渲染结果几乎不动（实测 9 个候选色
-     渲染出来都是 rgb(20x,22x,255) 这一档）。所以额外压一层固定定位的深蓝水洗 ——
-     它同时给整站定调：冷蓝统一压一遍，暖木框 / 牛皮纸才读得成「刻意的对比」，
-     而不是「两种颜色撞在一起」。
-     用 fixed 是为了让 .room / #page-detail 和 body 落在同一个水洗坐标系里，
-     三块背景才像同一张纸。 */
-  --wash: linear-gradient(180deg,
-            rgba(26, 58, 110, 0.10) 0%,
-            rgba(22, 50, 100, 0.17) 52%,
-            rgba(18, 44, 94, 0.26) 100%);
-
-  /* 米纸：所有浅色界面 / 卡面。比纯白暖一档，和牛皮纸裱板（#d8bb9e → #b3916f）、
-     木框（#7a5433）同族 —— 冷蓝配暖白才成体系，纯白只会把两边都衬得发灰。 */
-  --rice: #f7f3ea;
-  --rice-deep: #ece6da;
-  --line: #a3b4c6;
-  /* 图标资产是当年按桃粉主题出的图（粉色 hue≈347）。整站换成蓝之后，
-     用一次色相旋转把它们统一到 hue≈212，深色的勾线几乎不受影响
-     （近无彩色，转色相看不出来）。想回粉色，把这个值删掉即可。 */
-  --icon-hue: hue-rotate(-135deg);
-  /* 转场视频（118bb….mp4）的背景是**烘焙在画面里的**粉色水彩纸 —— 那个 mp4 就是最终
-     资产，没有工程文件可以重出，所以只能在播放时用色相旋转把它转蓝。
-     角度是按「页面纸实测色」反解出来的：视频粉底 rgb(255,206,216) 经 -125deg 落到
-     h≈212.8，正好压住页面纸的 h=212.9。再补一道 saturate(0.72)，把 82% 的饱和度
-     收到 57% —— 页面纸是 56%。只转色相的话视频会比整站蓝「艳一档」。
-     视频里的勾线和陶片是近无彩色（黑白灰），色相旋转和去饱和对它们都是无操作。
-     ⚠ 它和 --icon-hue 的角度**不一样**（-125 vs -135），别图省事合并成一个变量：
-     hue-rotate 是矩阵近似，同样是 hue≈347 的粉，「图标那种高饱和」和「视频纸这种
-     极浅（l≈90%）」转同样的角度会落到不同的蓝上，各测各的才对得上。
-     页面纸再改色的话，这两个数都要重新量（--wash 的水洗浓度也算在内）。 */
-  --video-hue: hue-rotate(-125deg) saturate(0.72);
+  --pink: #f0bcbb;  /* 桃粉主色 */
 }
 
 html,
 body {
   height: 100%;
   overflow: hidden;
-  /* 蓝色水彩纸背景图铺满。
-     background-blend-mode: luminosity = 「保留纸纹的明暗，色相与饱和度取 --paper 的蓝」，
-     所以 background.png 里那些水彩的笔触、颗粒、水渍一分没少，只是整张纸换了颜色。
-     想换别的颜色，改 --paper 一个值就够了，纹理不用重新出图。 */
-  background: var(--wash) fixed,
-    var(--paper) url("background.png") center / cover no-repeat fixed;
-  background-blend-mode: normal, luminosity;
+  /* 桃粉色水彩纸背景图铺满 */
+  background: var(--pink) url("background.png") center / cover no-repeat fixed;
   color: var(--ink);
   font-family: "Helvetica Neue", Arial, sans-serif;
 }
@@ -105,629 +66,104 @@ button {
   padding-bottom: 40px;
 }
 
-/* 3D 舞台。焦距写死在这里，script.js 里的 PERSP 必须与它一致（透视放大倍率 m = P / (P - z)） */
-.stage {
+/* 3D 舞台：卡片都以舞台中心为原点定位，底栏单独占位 */
+.carousel {
   position: relative;
   flex: 1;
   min-height: 0;
-  perspective: 900px;
-  perspective-origin: 50% 48%;
-}
-
-/* 展区：整场共用的一面墙。硬边的挂镜线 + 踢脚线把它交代成「一个房间」，
-   而且它随镜头轻微横移、换场时微微推近 —— 镜头一动，墙先给出反馈。
-   水彩纹理铺在 .room 上而不是 .room-wall 上：.room 就是展区的尺寸，
-   cover 解出来的纹理比例和 body 那张纸完全一致 —— 同一张纸的同一个比例，
-   才读得出「墙是这张纸往里凹进去的一块」。铺在放大的 .room-wall 上会放大 1.4 倍，
-   颗粒一粗就变成另一种材质了。 */
-.room {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  background: var(--wash) fixed,
-    var(--paper) url("background.png") center / cover no-repeat fixed;
-  background-blend-mode: normal, luminosity;
-}
-
-.room-wall {
-  position: absolute;
-  left: -22%;
-  right: -22%;
-  top: -20%;
-  bottom: -20%;
-  /* 墙不是另一种材质，它就是同一张水彩纸往里凹进去的一块 —— 所以这里只叠一层
-     半透明蓝墨把它压暗，纹理直接从 .room 透上来。
-     （这里千万别用不透明底色：那会把 .room 的水彩纹理整个盖死，
-       整屏最大的一块背景就退化成一条纯色渐变。）
-     不压暗就看不出这是「另一面」，而那正是纵深的第一层；上浅下深是墙面的自然受光。
-     压暗层跟着墙一起位移（26px），纹理不动 —— 差 26px，眼睛看不出来。 */
-  background: linear-gradient(180deg,
-              rgba(22, 46, 88, 0.08) 0%,
-              rgba(20, 44, 86, 0.17) 30%,
-              rgba(18, 40, 84, 0.27) 68%,
-              rgba(14, 34, 78, 0.37) 100%);
-  translate: calc(var(--fgs, 0) * 26px) 0;
-  transition: scale 0.75s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* 挂镜线：墙上的一条硬边横线，在画框上沿之上一点 */
-.room-wall::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 22.5%;
-  height: 4px;
-  background: rgba(58, 78, 104, 0.42);
-  box-shadow: 0 10px 14px -8px rgba(48, 66, 92, 0.4);
-}
-
-/* 打在作品后面的一团射灯光：墙被照亮，画框才有「挂上去」的重量。
-   光偏冷白 —— 墙已经是蓝的，再打暖光会把墙面染回灰黄，「整站蓝」就断在这一块 */
-.room-wall::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  width: 62%;
-  height: 76%;
-  translate: -50% -50%;
-  background: radial-gradient(closest-side,
-              rgba(238, 248, 255, 0.55),
-              rgba(226, 240, 255, 0.2) 62%,
-              rgba(220, 236, 255, 0) 100%);
-}
-
-/* 从天花往下洒的一道光锥：上窄下宽。
-   一条收敛的斜边比十条渐变都管用 —— 它是这套纵深里最省的「空间透视」线索，
-   观众一眼就知道自己站在一个有顶、有地、有进深的屋子里。
-   必须用 ::after 不能用 ::before：::before 在树序上排在 .room-wall 前面，
-   画出来会被墙体那层压暗糊掉 —— 改版前 .room-wall 还是不透明底色时，
-   这道光锥是被整块盖死的（染色探针实测 0/5 命中，等于从来没渲染过）。
-   ::after 排在 .room-wall 之后、又排在 .carousel 之前，正好「墙之上、展品之下」。 */
-.room::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: -6%;
-  width: 92%;
-  height: 110%;
-  translate: -50% 0;
-  clip-path: polygon(44% 0, 56% 0, 96% 100%, 4% 100%);
-  /* 透明度必须压得很低：这道光是压在墙的水彩纹理「上面」的，
-     亮到 0.5 就把中段墙面糊成一片白，水彩质感当场消失。
-     0.26 是「一眼看出有道光」和「纹理还在」之间的那个点。 */
-  background: linear-gradient(180deg,
-              rgba(240, 250, 255, 0.26),
-              rgba(228, 242, 255, 0.10) 46%,
-              rgba(220, 238, 255, 0) 86%);
-  pointer-events: none;
-}
-
-/* 换场时墙微微推近 —— 镜头在往前走 */
-.gallery.is-moving .room-wall {
-  scale: 1.035;
-}
-
-/* preserve-3d 是整套纵深的前提：少了它，子元素的 translateZ 会被压平，
-   所有平面就都贴在同一个面上——那正是「看起来只是平面图片交替」的根因 */
-.carousel {
-  position: absolute;
-  inset: 0;
-  /* z-index: 0 只用来把它锁成一个层叠上下文，保证后面前景层一定画在它之上。
-     注意：z-index 不会压平 preserve-3d（会压平的是 opacity / filter / overflow 那些），
-     所以 3D 排序照旧。 */
-  z-index: 0;
-  transform-style: preserve-3d;
+  /* 整体下移：用自身高度百分比，随窗口缩放同步，不会压到底部进度条 */
+  translate: 0 8%;
+  perspective: 1600px;
+  cursor: grab;
+  touch-action: pan-y;
   user-select: none;
 }
 
-/* ============================================================
-   展品 = 一叠景深不同的平面
-   .plane      只负责「站在 3D 空间的哪个位置」（transform 留给 translateZ）
-   .plane-inner 承载全部视觉，CSS 动画可以自由动它的 scale / translate / opacity，
-                不会和每帧由 JS 写入的定位打架
-   横向视差由 --bgx / --plx / --fgx 三个自定义属性喂进来（JS 每帧写一次，整棵子树共享）
-   ============================================================ */
+.carousel.is-dragging {
+  cursor: grabbing;
+}
+
+.card,
+.divider,
+.group-label {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+/* 卡片 = 上方标题 + 画框 + 下方说明，整体一起移动和缩放 */
 .card {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 760px;
-  height: 400px;
-  cursor: pointer;
-  /* 卡片内部也要在同一个 3D 空间里排序 */
-  transform-style: preserve-3d;
+  width: 180px;
+  height: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.plane {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-}
-
-.plane-inner {
-  width: 100%;
-  height: 100%;
-}
-
-/* 远景（z = -380）：这一层不再画墙（墙是常驻的 .room-wall），
-   只负责把组名挂在展品上方，并给出「离墙最远的一层」的视差位移。
-   组名跟着远墙走，所以换场时它比画框慢半拍 —— 层次就是这么分出来的。 */
-.plane-back {
-  width: 1240px;
-  height: 620px;
-  transform: translate(-50%, -50%) translateZ(-380px);
-  translate: calc(var(--bgx, 0) * 1px) 0;
-  pointer-events: none;
-}
-
-.plane-back .plane-inner {
-  position: relative;
-}
-
-/* 组名：章节标题浮在展墙上。跟着远墙走，所以换场时比画框慢半拍 */
-.plane-group {
-  position: absolute;
-  left: 50%;
-  top: -40px;
-  transform: translateX(-50%);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 44px;
-  letter-spacing: 0.16em;
-  color: rgba(43, 34, 34, 0.5);
-  white-space: nowrap;
-}
-
-/* 中景（z = 0）：画框本体，也就是对焦平面，整幅作品最清晰 */
-.plane-frame {
-  width: 400px;
-  height: 400px;
-  /* 画框不是正对镜头的，它朝右前方微微转过来一点（rotateY 为负 = 右边离观众更近）。
-     这一点点角度让画框的左右两条竖边长度不一样 —— 浏览器替我们做的透视除法，
-     比任何手画的梯形都准，也是「这块画框插在空间里」最直接的交代。
-     幅度刻意压得很小：0.5° 级别看不出，5° 以上就开始像渲染出错。 */
-  transform: translate(calc(-50% - 190px), -50%) translateZ(0) rotateY(-8deg) rotateX(1.5deg);
-}
-
-/* 裱纸（z = -150）：画框其实是裱在一张牛皮纸上挂上去的。
-   它比画框大一圈、朝上左歪一点，于是画框四周露出一条不规则的纸边 ——
-   「一件作品是好几张纸叠出来的」这句话，靠的就是这一层。
-   视差系数取 0.6：它比画框慢、比组名快，正好卡在两者中间。 */
-.plane-mount {
-  width: 500px;
-  height: 500px;
-  /* 朝上左错开：画框挂在纸的右下角，纸的上沿与左边露出一条不规则的纸边。
-     两张纸各自错开一点点，才是「一叠纸」；同心叠放只会读成一张纸描了边。 */
-  transform: translate(calc(-50% - 278px), calc(-50% + 30px)) translateZ(-150px) rotate(-3deg);
-  translate: calc(var(--bgx, 0) * 0.6px) 0;
-  pointer-events: none;
-}
-
-.plane-mount .plane-inner {
-  background: linear-gradient(158deg, #d8bb9e 0%, #c8a888 48%, #b3916f 100%);
-  /* 撕出来的纸边：不等距的锯齿，避免读成齿轮 */
-  clip-path: polygon(0.6% 3.2%, 12% 0.4%, 27% 2.6%, 44% 0.2%, 61% 3.4%, 78% 0.6%, 92% 2.8%, 99.4% 1.2%,
-                     99.8% 21%, 97.6% 42%, 99.9% 63%, 98.2% 82%, 99.5% 97.4%,
-                     86% 99.6%, 70% 97.2%, 53% 99.9%, 36% 97.6%, 19% 99.8%, 4% 98.2%, 0.2% 99.4%,
-                     1.8% 78%, 0.4% 57%, 2.4% 36%, 0.6% 17%);
-  box-shadow: 0 30px 46px -14px rgba(96, 52, 52, 0.5),
-              inset 0 0 60px rgba(120, 74, 48, 0.28);
-}
-
-/* 一角胶带：把画框粘在裱纸上。拼贴语言里最便宜的一笔，
-   但它一句话就把「画框是贴上去的一张纸」说完了。 */
-.frame-tape {
-  position: absolute;
-  left: -20px;
-  top: -16px;
-  width: 136px;
-  height: 34px;
-  rotate: -39deg;
-  background: linear-gradient(96deg,
-              rgba(255, 248, 232, 0.78),
-              rgba(250, 236, 212, 0.5) 58%,
-              rgba(255, 250, 238, 0.72) 100%);
-  box-shadow: 0 4px 9px -4px rgba(96, 52, 52, 0.5);
-  clip-path: polygon(0 12%, 100% 0, 96% 88%, 3% 100%);
-  pointer-events: none;
-}
-
-/* 前景平面（z = +150）：展签牌浮在画框之前，向右下错开、微微转向观众。
-   它和画框的视差位移不同，于是同一件作品内部也读得出纵深。
-   rotateY / rotateX 交给浏览器的透视除法去做梯形收缩 —— 牌子的左右两条边
-   长度不一样，一眼就是「插在空间里的一块牌子」，而不是贴在画面上的一个矩形 */
-.plane-plate {
-  width: 330px;
-  transform: translate(calc(-50% + 225px), calc(-50% + 18px)) translateZ(150px) rotateY(-17deg) rotateX(5deg);
-  translate: calc(var(--plx, 0) * 1px) 0;
-}
-
-/* 展签牌本身是一块实体牌子：底色 + 细边 + 投影。
-   它压在远墙之前，是「这一层离观众更近」最直观的交代 */
-.plane-plate .plane-inner {
-  padding: 18px 20px 20px;
-  border: 1px solid rgba(122, 84, 51, 0.28);
-  border-radius: 8px;
-  background: rgba(255, 250, 245, 0.62);
-  box-shadow: -9px 0 0 -2px rgba(150, 112, 78, 0.35),   /* 纸片厚度：朝左的一条硬边 */
-              0 26px 40px -10px rgba(96, 52, 52, 0.4),
-              inset 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-
-.plane-plate h3 {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 26px;
+.card-head h3 {
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.plate-sub {
-  margin-top: 6px;
-  font-size: 14px;
   letter-spacing: 0.04em;
-  color: rgba(43, 34, 34, 0.65);
 }
 
-.plate-info {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 2px solid rgba(43, 34, 34, 0.25);
-  font-size: 14px;
-  line-height: 1.85;
-  color: rgba(43, 34, 34, 0.85);
+.card-head p {
+  margin-top: 2px;
+  font-size: 10px;
+  color: rgba(43, 34, 34, 0.7);
 }
 
-.plate-info strong {
-  display: block;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: var(--ink);
-}
-
-/* 画框：棕色木框 + 米色卡纸 */
-.card-frame {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
+/* 画框区域固定大小，保证文字对齐；画框本身按图片比例收缩 */
+.card-frame-box {
+  width: 180px;
+  height: 180px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  border: 10px solid #7a5433;
-  background: #fdfaf4;
-  /* 两层投影缺一不可：
-     ① 12px 12px 0 的硬投影 = 纸片的厚度（剪纸拼贴的招牌）；
-     ② 大半径软投影 = 它离墙板有多远。
-     只有软投影会像贴图，只有硬投影会像贴纸，两个叠在一起才有「实体挂在空中」的感觉 */
-  box-shadow: inset 0 0 0 2px #4a3020,
-              12px 14px 0 -3px rgba(74, 48, 32, 0.26),
-              0 26px 40px -10px rgba(96, 52, 52, 0.5);
-  /* 只动 box-shadow，不碰 transform */
-  transition: box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.card.is-center .card-frame {
-  box-shadow: inset 0 0 0 3px #4a3020,
-              16px 18px 0 -3px rgba(74, 48, 32, 0.3),
-              0 38px 60px -8px rgba(96, 52, 52, 0.56);
+/* 棕色木质画框 */
+.card-frame {
+  border: 6px solid #7a5433;
+  box-shadow: inset 0 0 0 2px #4a3020, 0 10px 20px rgba(110, 50, 50, 0.25);
 }
 
 .card-frame img {
   display: block;
-  width: 100%;
-  height: 100%;
-  /* 小幅作品（01–03 只有 ~200px）也撑满卡纸，保证每件展品视觉大小一致 */
-  object-fit: contain;
+  max-width: 168px;
+  max-height: 168px;
   pointer-events: none;
 }
 
-/* 对焦平面身后的一圈暖光，像展厅里打在作品上的射灯。
-   ::before / ::after 用负 z-index 沉到画框背后（.plane 有 transform，层叠上下文不外溢） */
-.plane-frame .plane-inner::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 900px;
-  height: 560px;
-  translate: -50% -50%;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, rgba(244, 250, 255, 0.95), rgba(244, 250, 255, 0));
-  opacity: 0;
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-  z-index: -1;
+.card-info {
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: rgba(43, 34, 34, 0.85);
 }
 
-.plane-frame .plane-inner::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 1120px;
-  height: 700px;
-  translate: -50% -50%;
-  border-radius: 50%;
-  background:
-    radial-gradient(closest-side, rgba(255, 226, 176, 0.34), rgba(255, 226, 176, 0) 72%),
-    radial-gradient(closest-side at 34% 62%, rgba(186, 216, 255, 0.3), rgba(186, 216, 255, 0) 70%);
-  opacity: 0;
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-  z-index: -2;
-  animation: aurora 7s ease-in-out infinite;
-}
-
-.card.is-center .plane-frame .plane-inner::before,
-.card.is-center .plane-frame .plane-inner::after {
-  opacity: 1;
-}
-
-@keyframes aurora {
-  0%, 100% { scale: 1;    rotate: 0deg; }
-  50%      { scale: 1.06; rotate: 4deg; }
-}
-
-/* 换场流光：作品被推到正中时，画框上掠过一道斜向高光 */
-.card.is-center .card-frame::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(104deg,
-              rgba(255, 255, 255, 0) 34%,
-              rgba(255, 246, 226, 0.62) 50%,
-              rgba(255, 255, 255, 0) 66%);
-  animation: sheen 1.1s cubic-bezier(0.3, 0, 0.2, 1);
-  pointer-events: none;
-}
-
-@keyframes sheen {
-  from { opacity: 0; translate: -110% 0; }
-  22%  { opacity: 1; }
-  to   { opacity: 0; translate: 110% 0; }
-}
-
-/* ---------- 到达与离场的分镜 ----------
-   动画只动 scale / translate / opacity，全部落在 .plane-inner 上，
-   所以永远不会和 JS 每帧写入的 transform 抢属性 */
-.card.is-center .plane-inner {
-  animation: planeSettle 0.78s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-/* 入场的次序：墙板先亮 → 画框落定 → 展签牌从右侧插进来 → 最近的那张撕纸最后归位。
-   四层不同时到达，才读得出「一件作品是一叠纸片拼起来的」。
-   触发点在换场走到一半时（那时撕纸正好把画面盖住），所以整段入场是在纸后面完成的，
-   纸一让开，新的一件已经站好了。 */
-.card.is-center .plane-back .plane-inner   { animation-delay: 0s; }
-.card.is-center .plane-mount .plane-inner  { animation-delay: 0.06s; }
-.card.is-center .plane-frame .plane-inner  { animation-delay: 0.1s; }
-.card.is-center .plane-plate .plane-inner  { animation-name: plateIn; animation-delay: 0.22s; }
-
-/* 离场：这件已经被镜头推过去了。各层以不同速度散开 ——
-   读起来是「镜头从这叠纸片中间穿了过去」，而不是「这张图淡出了」 */
-.card.is-past .plane-inner {
-  animation: planeOut 0.7s cubic-bezier(0.5, 0, 0.75, 0) forwards;
-}
-
-.card.is-past .plane-plate .plane-inner { animation-name: plateOut; }
-
-@keyframes planeSettle {
-  from { scale: 0.93; translate: 0 30px; }
-  to   { scale: 1;    translate: 0 0; }
-}
-
-@keyframes plateIn {
-  from { scale: 0.94; translate: 62px 16px; }
-  to   { scale: 1;    translate: 0 0; }
-}
-
-
-@keyframes planeOut {
-  from { scale: 1;    translate: 0 0; }
-  to   { scale: 1.34; translate: 0 -34px; }
-}
-
-@keyframes plateOut {
-  from { scale: 1;   translate: 0 0; }
-  to   { scale: 1.3; translate: 104px 28px; }
-}
-
-
-/* 整场离场（进转场视频）：各层一起淡下去，只动 opacity */
-#page-gallery.is-leaving .plane-inner {
-  opacity: 0;
-  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.6, 1);
-}
-
-/* ============================================================
-   前景剪影层 = 房间的边框，永远挡在展品之前。
-   纵深不靠模糊，靠「硬边 + 投影 + 遮挡 + 视差」——
-   和参考片子里那些剪纸层是同一套语言。
-   换场时有一张撕纸横掠过去把交接整块盖住：这是「遮挡」，不是虚化。
-   ============================================================ */
-.fg-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-/* 每个前景件都是硬边色块，不是渐隐的光晕 ——
-   有边才挡得住东西，挡得住东西才有「它在前面」这回事 */
-.fg {
-  position: absolute;
+.card-info strong {
   display: block;
-  transition: scale 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+  font-weight: 700;
+  color: var(--ink);
 }
 
-/* 天花横梁：房间的上沿。下沿一条硬边 + 往下投的影，
-   把展品顶部压掉一条，观众立刻知道自己是站在一个空间里抬头看 */
-.fg-top {
-  left: -8%;
-  right: -8%;
-  top: -14%;
-  height: 16%;
-  background: linear-gradient(180deg, #2a1814 0%, #3a241d 68%, #482d24 100%);
-  box-shadow: 0 18px 24px -14px rgba(26, 12, 8, 0.6);
-  translate: 0 calc(var(--fgs, 0) * -30px);
+/* 组名：APPLE / CLOUD / BACK VIEW OF A PERSON */
+.group-label {
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
-/* 左门柱：硬边 + 朝右投的影。换场时它横移得比展品快，遮挡关系就变了 */
-.fg-left {
-  left: -4%;
-  top: -16%;
-  bottom: -16%;
-  width: 11%;
-  background: linear-gradient(90deg, #2a1814 0%, #3a241d 74%, #4e3027 100%);
-  box-shadow: 16px 0 22px -12px rgba(26, 12, 8, 0.55);
-  translate: calc(var(--fgs, 0) * 104px) 0;
-}
-
-/* 右门柱：比左边窄一点，别把展签压掉 */
-.fg-right {
-  right: -4%;
-  top: -16%;
-  bottom: -16%;
-  width: 9%;
-  background: linear-gradient(270deg, #2a1814 0%, #3a241d 74%, #4e3027 100%);
-  box-shadow: -16px 0 22px -12px rgba(26, 12, 8, 0.55);
-  translate: calc(var(--fgs, 0) * -80px) 0;
-}
-
-/* 地台：房间的下沿。一条硬边横带压住画面底边，
-   和天花横梁一起把画面框成一个「房间」而不是一张背景图 */
-.fg-floor {
-  left: -8%;
-  right: -8%;
-  bottom: -8%;
-  height: 14%;
-  background: linear-gradient(180deg, #482d24 0%, #3a241d 34%, #241411 100%);
-  box-shadow: 0 -16px 22px -12px rgba(26, 8, 12, 0.5);
-  translate: 0 calc(var(--fgs, 0) * 20px);
-}
-
-/* 最前排的一撮碎片剪影：钉在画面下缘，永远压在展品之前。
-   有形状的剪影才像「一件东西」，一团渐变只会被当成背景上的脏点，
-   所以每个都用 clip-path 切出硬边轮廓。 */
-.fg-shard {
-  bottom: 0;
-  background: linear-gradient(168deg, #2c1a16 0%, #422a21 58%, #5b362b 100%);
-  filter: drop-shadow(-7px -9px 14px rgba(24, 11, 8, 0.5));
-  translate: calc(var(--fgs, 0) * 132px) 0;
-}
-
-.fg-shard-a {
-  left: 0;
-  width: 420px;
-  height: 142px;
-  /* 最高的一峰刻意落在 72% 处，也就是画面里那件作品左下角的正前方 ——
-     剪影咬进画框一角，遮挡关系一眼可见。这才是「前景元素」：
-     不是装饰性地摆在角落，而是真的挡住后面的东西。 */
-  clip-path: polygon(0% 100%, 0% 74%, 6% 74%, 10% 46%, 14% 74%, 25% 74%, 29% 30%, 33% 74%,
-                     45% 74%, 50% 58%, 56% 74%, 68% 74%, 72% 16%, 77% 74%, 87% 74%,
-                     91% 54%, 96% 74%, 100% 74%, 100% 100%);
-}
-
-.fg-shard-b {
-  left: 30.5%;
-  width: 138px;
-  height: 84px;
-  clip-path: polygon(0% 100%, 10% 38%, 36% 6%, 64% 32%, 84% 10%, 100% 100%);
-}
-
-.fg-shard-c {
-  left: 40.5%;
-  width: 100px;
-  height: 54px;
-  clip-path: polygon(0% 100%, 14% 28%, 44% 2%, 72% 38%, 100% 100%);
-}
-
-/* 换场：一张撕纸横掠过去，把交接整块盖住。用 CSS 动画，时长由 JS 按本次推镜长度喂进来。
-   纸宽 210%、行程 -120% → 120%，算下来它在进度 f≈0.34 到 f≈0.55 之间
-   完全盖住整个舞台 —— 而镜头正好在 f=0.5 穿过中点，于是「换掉」这件事
-   发生在纸背后：观众看到的是纸扫过去之后，新的一件已经在位。 */
-.fg-wipe {
-  left: -27%;
-  top: -22%;
-  bottom: -22%;
-  width: 210%;
-  background:
-    /* 撕裂的纤维会挂光：两条撕口各描一道暖色细边 */
-    linear-gradient(90deg, rgba(255, 216, 188, 0.4) 0 0.35%, rgba(255, 216, 188, 0) 2.2%),
-    linear-gradient(270deg, rgba(255, 216, 188, 0.4) 0 0.35%, rgba(255, 216, 188, 0) 2.2%),
-    repeating-linear-gradient(94deg, rgba(255, 236, 220, 0.05) 0 3px, rgba(255, 236, 220, 0) 3px 13px),
-    linear-gradient(96deg,
-      #2a1814 0%, #3e261f 28%, #58342a 58%, #7e4a39 88%,
-      #cf9a83 96%, #f4d6c0 100%);
-  /* 撕口：上下两条平边留在画面外，左右两条是撕裂线。
-     锯齿的间距和深度都刻意不等距 —— 等距的三角会读成「齿轮」，不是撕纸 */
-  clip-path: polygon(0% 0%, 1.2% 7%, 0.3% 14%, 2.6% 21%, 0.9% 28%, 1.8% 35%, 0.2% 42%, 3.1% 49%,
-                     1.4% 56%, 0.6% 63%, 2.2% 70%, 0.4% 77%, 2.9% 84%, 1.1% 91%, 2.4% 100%,
-                     97.6% 100%, 99.1% 93%, 96.8% 86%, 99.4% 79%, 97.2% 72%, 98.6% 65%, 96.4% 58%, 99.5% 51%,
-                     97.8% 44%, 98.2% 37%, 96.6% 30%, 99.3% 23%, 97.4% 16%, 98.8% 9%, 97.1% 0%);
-  opacity: 0;
-  translate: -120% 0;
-}
-
-.fg-layer.is-wiping .fg-wipe {
-  opacity: 1;
-  animation: wipeAcross var(--wipe-dur, 0.9s) cubic-bezier(0.4, 0.05, 0.6, 0.95);
-}
-
-@keyframes wipeAcross {
-  from { translate: -120% 0; }
-  to   { translate: 120% 0; }
-}
-
-/* 往回走时，纸从另一边扫过来，方向感才对得上 */
-.fg-layer.is-wiping.is-back .fg-wipe {
-  animation-name: wipeAcrossBack;
-}
-
-@keyframes wipeAcrossBack {
-  from { translate: 120% 0; }
-  to   { translate: -120% 0; }
-}
-
-/* 换场中：前景整体向观众压近，制造「掠过」的速度感。
-   撕纸不参与 —— 它有自己的行程，多一层 scale 会把覆盖率算乱 */
-.gallery.is-moving .fg:not(.fg-wipe) {
-  scale: 1.06;
-}
-
-/* 换场闪光：换到下一件时的一记「快门」 */
-.fx-flash {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0;
-  background: radial-gradient(58% 58% at 50% 46%,
-              rgba(255, 250, 240, 0.8),
-              rgba(255, 240, 226, 0.26) 55%,
-              rgba(255, 236, 226, 0) 100%);
-}
-
-.fx-flash.is-on {
-  animation: shutter 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes shutter {
-  0%   { opacity: 0;    scale: 1.14; }
-  16%  { opacity: 0.85; }
-  100% { opacity: 0;    scale: 1; }
+/* 组间分隔竖线 */
+.divider {
+  width: 2px;
+  height: 340px;
+  background: linear-gradient(transparent, var(--ink) 20%, var(--ink) 80%, transparent);
 }
 
 /* 独立底栏：波浪进度条自身居中，交互按钮靠右 */
 .progress-bar {
-  /* 展墙 .carousel 是定位元素（position: relative），定位元素默认绘制在静态元素之上，
-     会把整条底栏盖住——按钮点不到、小手拖不动。这里把底栏抬到展墙之上修掉。 */
-  position: relative;
-  z-index: 2;
   display: grid;
   grid-template-columns: minmax(0, 1fr) min(620px, 50vw) minmax(0, 1fr);
   align-items: center;
@@ -742,80 +178,6 @@ button {
   width: 100%;
   height: auto;
   pointer-events: none;
-}
-
-/* ===== 分步导航：落在底栏左栏（原本空着的那一格） ===== */
-.step-nav {
-  grid-column: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.step-btn {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  background: var(--rice);
-  box-shadow: 0 4px 0 var(--ink);
-  cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s, translate 0.15s;
-}
-
-.step-btn svg {
-  width: 22px;
-  height: 22px;
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 2.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-@media (hover: hover) {
-  .step-btn:not(:disabled):hover {
-    background: var(--rice-deep);
-    translate: 0 -4px;
-  }
-}
-
-.step-btn:not(:disabled):active {
-  box-shadow: 0 1px 0 var(--ink);
-  translate: 0 -1px;
-}
-
-.step-btn:disabled {
-  opacity: 0.32;
-  box-shadow: 0 2px 0 var(--ink);
-  cursor: default;
-}
-
-/* 步进计数：数字切换时上滑浮现 */
-.step-count {
-  min-width: 78px;
-  text-align: center;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.step-count .num {
-  display: inline-block;
-}
-
-.step-count .num.is-flip {
-  animation: numFlip 0.42s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes numFlip {
-  from { opacity: 0; transform: translateY(10px) scale(0.86); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* 透明胶囊图片保留原图描边，硬阴影沿轮廓形成按钮厚度 */
@@ -833,7 +195,6 @@ button {
   display: block;
   width: 100%;
   height: auto;
-  filter: var(--icon-hue);
   pointer-events: none;
 }
 
@@ -894,7 +255,7 @@ button {
   fill: var(--ink);
   stroke: none;
   pointer-events: all;
-  cursor: pointer;
+  cursor: grab;
   touch-action: none;
 }
 
@@ -911,11 +272,9 @@ button {
   box-shadow: none;
 }
 
-/* 静止时平铺，不额外浮起；单件聚焦时它是整场展览的出口，自己占满画面中心 */
+/* 静止时平铺，不额外浮起 */
 .add-btn.icon-btn {
   translate: 0 0;
-  width: 240px;
-  height: 240px;
 }
 
 /* 按钮本身没有边框底色，立体感由图标自带的硬阴影表现：
@@ -931,7 +290,7 @@ button {
   }
 
   .add-btn.icon-btn:hover .button-icon {
-  filter: var(--icon-hue) drop-shadow(0 4px 0 var(--ink));
+    filter: drop-shadow(0 4px 0 var(--ink));
   }
 }
 
@@ -940,7 +299,7 @@ button {
 }
 
 .add-btn.icon-btn:active .button-icon {
-  filter: var(--icon-hue) drop-shadow(0 1px 0 var(--ink));
+  filter: drop-shadow(0 1px 0 var(--ink));
 }
 
 /* 按钮下方说明文字：投稿按钮与工具按钮共用同一套字体样式，改这里两边同步 */
@@ -961,7 +320,7 @@ button {
   left: 50%;
   top: calc(100% + 10px);
   transform: translateX(-50%);
-  width: 280px;
+  width: 120px;
   text-align: center;
 }
 
@@ -972,9 +331,7 @@ button {
   transition: opacity 0.6s;
 }
 
-/* 转场视频：等比例铺满屏幕，不留边、不叠加背景图。
-   视频画面自带粉色水彩纸底，用 --video-hue 在播放时转成站点同一个蓝
-   （见 :root 里那条注释：这个角度是量出来的，不是猜的）。 */
+/* 转场视频：等比例铺满屏幕，不留边、不叠加背景图 */
 .transition-video {
   position: fixed;
   inset: 0;
@@ -984,20 +341,10 @@ button {
   height: 100%;
   object-fit: cover;
   background: #000;
-  filter: var(--video-hue);
 }
 
 .transition-video.is-playing {
   display: block;
-}
-
-/* 视频播完不硬切，淡出露出画布页 */
-.transition-video {
-  transition: opacity 0.6s ease;
-}
-
-.transition-video.is-fading {
-  opacity: 0;
 }
 
 /* ========== 页面二：画布 ========== */
@@ -1013,11 +360,9 @@ button {
   padding: 16px 32px 0;
 }
 
-/* 画布页沿用同一张蓝色水彩纸 */
+/* 画布页沿用粉色纸面背景 */
 #page-detail {
-  background: var(--wash) fixed,
-    var(--paper) url("background.png") center / cover no-repeat;
-  background-blend-mode: normal, luminosity;
+  background: var(--pink) url("background.png") center / cover no-repeat;
 }
 
 .studio-logo {
@@ -1030,7 +375,7 @@ button {
   padding: 10px;
   border: 2px solid var(--ink);
   border-radius: 18px;
-  background: var(--rice);
+  background: #fff;
 }
 
 .studio-actions {
@@ -1049,7 +394,7 @@ button {
   gap: 8px;
   border: 2px solid var(--ink);
   border-radius: 999px;
-  background: var(--rice);
+  background: #fff5f4;
   font-family: var(--hand);
   font-size: 17px;
   transition: transform 0.15s, background 0.15s;
@@ -1066,9 +411,7 @@ button {
 }
 
 .pill-btn.is-primary {
-  background: var(--paper);
-  /* 底变深之后 --ink 的字压在上面会糊，主按钮改米纸字 */
-  color: var(--rice);
+  background: var(--pink);
 }
 
 /* 图标和画布共用首行，顶部对齐；对称侧栏保持画布水平居中 */
@@ -1093,8 +436,8 @@ button {
   border: 2px solid var(--ink);
   border-radius: 16px;
   overflow: hidden;
-  background: var(--rice);
-  box-shadow: 0 12px 30px rgba(30, 52, 88, 0.22);
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(110, 50, 50, 0.2);
 }
 
 .canvas-wrap canvas {
@@ -1135,7 +478,7 @@ button {
   border: 2px solid var(--ink);
   border-radius: 16px;
   /* 图标自带粉色填充，按钮底改用极浅粉白，避免与图标粉色融在一起 */
-  background: var(--rice);
+  background: #fff5f4;
   box-shadow: 0 4px 0 var(--ink);
   translate: 0 -4px;
   transition: background 0.15s, box-shadow 0.15s, translate 0.15s;
@@ -1146,7 +489,6 @@ button {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: var(--icon-hue);
   pointer-events: none;
 }
 
@@ -1157,7 +499,7 @@ button {
 }
 
 .studio-head .icon-btn {
-  background: var(--rice);
+  background: #fff;
   /* 默认不显示阴影，悬停时才浮起 */
   box-shadow: none;
   translate: 0 0;
@@ -1183,7 +525,7 @@ button {
 }
 
 .icon-btn:hover {
-  background: var(--rice-deep);
+  background: #fde9e8;
 }
 
 .icon-btn:focus-visible {
@@ -1202,15 +544,15 @@ button {
 }
 
 /* 选中的工具按钮底色固定为悬停色，鼠标移开也不回退：
-   已选中 = 蓝底 + 上浮 + 硬阴影，未选中 = 白底 + 平铺，
+   已选中 = 粉色 + 上浮 + 硬阴影，未选中 = 白底 + 平铺，
    两者一眼可分，不必靠鼠标划过才知道当前用的是什么工具。
    此规则必须写在 .icon-btn:hover 之后，同权重下靠顺序取胜。 */
 .tool-btn.is-active {
-  background: var(--rice-deep);
+  background: #fde9e8;
 }
 
 .tool-btn:not(.is-active) {
-  background: var(--rice);
+  background: #fff;
   box-shadow: none;
   translate: 0 0;
 }
@@ -1223,7 +565,7 @@ button {
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(24, 42, 74, 0.45);
+  background: rgba(80, 50, 50, 0.45);
   backdrop-filter: blur(4px);
 }
 
@@ -1239,8 +581,8 @@ button {
   padding: 26px 40px 24px;
   border: 2px solid var(--ink);
   border-radius: 32px;
-  background: var(--rice-deep);
-  box-shadow: 0 20px 50px rgba(22, 38, 68, 0.3);
+  background: #fde9e8;
+  box-shadow: 0 20px 50px rgba(60, 30, 30, 0.3);
   font-family: var(--hand);
 }
 
@@ -1254,9 +596,7 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--paper);
-  /* 同上：深蓝底配米纸色的叉，才看得见 */
-  color: var(--rice);
+  background: var(--pink);
 }
 
 .modal-close svg {
@@ -1313,8 +653,7 @@ button {
   width: 100%;
   height: 100%;
   z-index: -1;
-  /* 这是选项芯片的底，不是天上的云 —— 跟其它浅色面一起用米纸色 */
-  fill: var(--rice);
+  fill: #fff5f4;
   stroke: var(--ink);
   stroke-width: 2;
 }
@@ -1332,7 +671,7 @@ button {
   justify-content: center;
   border: 2px solid var(--ink);
   border-radius: 5px;
-  background: var(--rice);
+  background: #fff;
 }
 
 .check-box svg {
@@ -1344,7 +683,7 @@ button {
 }
 
 .cloud-option input:checked ~ svg.cloud {
-  fill: var(--paper);
+  fill: var(--pink);
 }
 
 .cloud-option input:checked ~ .check-box {
@@ -1367,7 +706,7 @@ button {
   resize: none;
   border: 2px solid var(--ink);
   border-radius: 14px;
-  background: var(--rice);
+  background: #fff5f4;
   color: var(--ink);
   font-family: var(--hand);
   font-size: 15px;
@@ -1453,7 +792,7 @@ button {
   padding: 12px 28px;
   border: 2px solid var(--ink);
   border-radius: 999px;
-  background: var(--rice);
+  background: #fff5f4;
   font-family: var(--hand);
   font-size: 16px;
   text-align: center;
@@ -1480,10 +819,10 @@ button {
   gap: 28px;
 }
 
-/* 每栏左侧一条浅蓝竖线 */
+/* 每栏左侧一条浅红竖线 */
 .compare-col {
   padding-left: 28px;
-  border-left: 2px solid var(--line);
+  border-left: 2px solid #e8a09e;
 }
 
 .compare-col h3 {
@@ -1525,183 +864,4 @@ button {
 #humanNote {
   white-space: pre-line;
   overflow-wrap: anywhere;
-}
-
-/* ============================================================
-   动效总表
-   原则：transform 归 JS（展墙定位每帧写入），动画只用
-   opacity / translate / scale / filter / box-shadow 这些独立属性。
-   ============================================================ */
-
-/* ---------- 共用关键帧 ---------- */
-@keyframes riseIn {
-  from { opacity: 0; translate: 0 26px; }
-  to   { opacity: 1; translate: 0 0; }
-}
-
-@keyframes dropIn {
-  from { opacity: 0; translate: 0 -24px; }
-  to   { opacity: 1; translate: 0 0; }
-}
-
-@keyframes popIn {
-  from { opacity: 0; scale: 0.9; translate: 0 22px; }
-  to   { opacity: 1; scale: 1; translate: 0 0; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-/* ---------- 展厅：标题 / 底栏进场 ---------- */
-#page-gallery.is-active .gallery-title {
-  animation: dropIn 1.1s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-#page-gallery.is-active .step-nav {
-  animation: riseIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.22s backwards;
-}
-
-#page-gallery.is-active .progress {
-  animation: riseIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s backwards;
-}
-
-#page-gallery.is-active .progress-icon {
-  animation: riseIn 1s cubic-bezier(0.16, 1, 0.3, 1) 0.38s backwards;
-}
-
-/* ---------- 展厅：电影感暗角，四角压暗把视线收进画面中心 ---------- */
-#page-gallery::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: radial-gradient(115% 92% at 50% 44%,
-              rgba(26, 48, 90, 0) 52%,
-              rgba(26, 48, 90, 0.13) 82%,
-              rgba(18, 38, 76, 0.24) 100%);
-}
-
-/* ---------- 进度条：小手待机轻轻起伏，提示这里可以拖 ---------- */
-.progress-hand > g {
-  animation: handBob 2.8s ease-in-out infinite;
-}
-
-@keyframes handBob {
-  0%, 100% { translate: 0 0; }
-  50%      { translate: 0 -5px; }
-}
-
-/* ---------- 画布页进场：顶栏下落、画布浮起、工具条随后 ---------- */
-#page-detail.is-active .studio-head {
-  animation: dropIn 0.75s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-#page-detail.is-active .canvas-wrap {
-  animation: popIn 1.05s cubic-bezier(0.16, 1, 0.3, 1) 0.08s backwards;
-}
-
-#page-detail.is-active .studio-logo {
-  animation: popIn 1.05s cubic-bezier(0.16, 1, 0.3, 1) 0.16s backwards;
-}
-
-#page-detail.is-active .toolbar {
-  animation: riseIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.24s backwards;
-}
-
-/* ---------- 弹窗：遮罩淡入，卡片弹出，内部元素错峰 ---------- */
-.modal.is-open {
-  animation: fadeIn 0.28s ease backwards;
-}
-
-.modal.is-open .modal-box {
-  animation: popIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-#reflectModal.is-open .cloud-option {
-  animation: riseIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-#reflectModal.is-open .modal-actions,
-#compareModal.is-open .modal-actions {
-  animation: riseIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.18s backwards;
-}
-
-#compareModal.is-open .compare-col {
-  animation: riseIn 0.75s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-#compareModal.is-open .compare-col:nth-child(2) { animation-delay: 0.11s; }
-#compareModal.is-open .compare-col:nth-child(3) { animation-delay: 0.22s; }
-
-/* ---------- 键盘可达性：所有按钮统一焦点环 ---------- */
-.step-btn:focus-visible,
-.pill-btn:focus-visible,
-.modal-close:focus-visible,
-.dropzone:focus-within {
-  outline: 3px solid var(--ink);
-  outline-offset: 3px;
-}
-
-/* ============================================================
-   氛围层：粒子画布 / 胶片颗粒 / 射灯辉光 / 换场流光
-   ============================================================ */
-
-/* 粒子画布浮在展品之上，但完全不吃点击（pointer-events: none） */
-.fx-canvas {
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-}
-
-/* 胶片颗粒：极淡的噪点，压掉纯色背景的塑料感。
-   用 SVG feTurbulence 生成，不引入任何图片资源 */
-#page-gallery::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 3;
-  pointer-events: none;
-  opacity: 0.2;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-  animation: grainShift 0.7s steps(3) infinite;
-}
-
-/* 颗粒每帧位移几像素，像老胶片在轻微跳动 */
-@keyframes grainShift {
-  0%   { background-position: 0 0; }
-  33%  { background-position: -22px 14px; }
-  66%  { background-position: 16px -20px; }
-  100% { background-position: 0 0; }
-}
-
-/* 暗角要压在颗粒之上 */
-#page-gallery::after {
-  z-index: 4;
-}
-
-/* 进度条小手加一圈呼吸光晕，提示这里可以拖 */
-.progress-hand > g {
-  filter: drop-shadow(0 0 6px rgba(255, 224, 176, 0.9));
-}
-
-/* ---------- 尊重系统「减弱动态效果」 ---------- */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-  .fx-canvas {
-    display: none;
-  }
 }

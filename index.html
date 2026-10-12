@@ -8,68 +8,21 @@
 </head>
 <body>
 
-  <!-- 页面一：展厅，单件聚焦陈列 -->
+  <!-- 页面一：展厅，9 张作品弧形排列 -->
   <section id="page-gallery" class="page is-active">
-    <!-- 氛围粒子层：浮尘 / 光斑 / 换场爆发，纯 canvas 绘制，不吃点击 -->
-    <canvas class="fx-canvas" id="fxCanvas" aria-hidden="true"></canvas>
-
     <h1 class="gallery-title">The Museum of “Imperfect” Creativity</h1>
 
     <div class="gallery">
-      <!-- 3D 舞台：perspective 决定镜头焦距；.carousel 必须保持 preserve-3d，
-           否则各层的 translateZ 会被压平，整套纵深就没了。
-           展品由 script.js 生成，每件是一叠景深不同的平面，摄影机沿 Z 轴推进。 -->
-      <div class="stage" id="stage">
-        <!-- 展墙：整场展览共用的一面墙，不跟着展品换。
-             挂镜线 + 踢脚线两条硬边横线是「这是一个房间」最省的交代，
-             而且它们会随镜头轻微横移 —— 一眼就看得出镜头在动。 -->
-        <div class="room" aria-hidden="true">
-          <span class="room-wall"></span>
-        </div>
-
-        <div class="carousel" id="carousel">
-          <button class="add-btn icon-btn" id="addBtn" type="button" aria-label="Submit Your Contribution">
-            <img class="button-icon" src="image/button-contribute.png" alt="" draggable="false">
-            <span class="add-tip">Submit Your Contribution</span>
-          </button>
-        </div>
-
-        <!-- 前景剪影层 = 房间的边框。它永远挡在展品之前：
-             天花横梁、左右门柱、地台、左下角探进来的一枝。
-             硬边 + 投影 + 遮挡，这才是纵深；换场时它们按各自的速度横移，
-             于是镜头一动，整个房间就在展品前面错开。 -->
-        <div class="fg-layer" aria-hidden="true">
-          <span class="fg fg-top"></span>
-          <span class="fg fg-left"></span>
-          <span class="fg fg-right"></span>
-          <span class="fg fg-floor"></span>
-          <!-- 最前排的一撮碎片剪影：永远压在展品之前。
-               参考片里每一场都有一排深色剪影钉在画面下缘（观众 / 道具），
-               那是最便宜也最有效的「我在前面还有一层」的交代。 -->
-          <span class="fg fg-shard fg-shard-a"></span>
-          <span class="fg fg-shard fg-shard-b"></span>
-          <span class="fg fg-shard fg-shard-c"></span>
-          <!-- 换场时横掠过去的撕纸：把上一件与下一件的交接整块盖掉 -->
-          <span class="fg fg-wipe"></span>
-        </div>
+      <!-- 卡片与分隔线由 script.js 生成；+ 按钮也会被放到第 10 张的位置 -->
+      <div class="carousel" id="carousel">
+        <button class="add-btn icon-btn" id="addBtn" type="button" aria-label="Submit Your Contribution">
+          <img class="button-icon" src="image/button-contribute.png" alt="" draggable="false">
+          <span class="add-tip">Submit Your Contribution</span>
+        </button>
       </div>
 
-      <!-- 换场闪光：换到下一件时的一记「快门」，压在展品之上、粒子之下 -->
-      <div class="fx-flash" id="fxFlash" aria-hidden="true"></div>
-
       <div class="progress-bar">
-        <!-- 分步导航：一格一步，走完展墙正好到投稿按钮 -->
-        <div class="step-nav">
-          <button class="step-btn" id="prevStep" type="button" aria-label="Previous work">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-          </button>
-          <p class="step-count" aria-live="polite"><span class="num" id="stepNow">05</span> / <span id="stepTotal">11</span></p>
-          <button class="step-btn" id="nextStep" type="button" aria-label="Next work">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-          </button>
-        </div>
-
-        <!-- 手绘波浪进度条：小手随步进沿曲线移动 -->
+        <!-- 手绘波浪进度条：小手随拖动沿曲线移动 -->
         <svg class="progress" viewBox="0 0 1000 130" aria-hidden="true">
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
@@ -221,6 +174,5 @@
 
   <script src="shard-data.js"></script>
   <script src="script.js"></script>
-  <script src="particles.js"></script>
 </body>
 </html>
